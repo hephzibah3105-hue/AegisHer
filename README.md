@@ -9,10 +9,10 @@
 Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and credential harvesting are escalating at unprecedented rates. Traditional web security shields focus primarily on network malware, leaving users unprotected against **social engineering, coercive manipulation, and targeted online harassment**.
 
 **AegisHer** bridges this critical defense gap by deploying on-device AI inference and heuristic security mechanisms to:
-- **Scan and Intercept Phishing & Malicious URLs** before page navigation.
-- **Detect Sextortion & Coercive Threats in Real-Time** using a local Bayesian NLP classification engine.
-- **Automatically Capture & Vault Forensic Evidence** (DOM snapshots, timestamps, URLs, visual screen evidence) without manual user intervention.
-- **Generate Legal-Ready Forensic Incident Reports** formatted for cybercrime reporting.
+* **Scan and Intercept Phishing & Malicious URLs** before page navigation.
+* **Detect Sextortion & Coercive Threats in Real-Time** using a local Bayesian NLP classification engine.
+* **Automatically Capture & Vault Forensic Evidence** (DOM snapshots, timestamps, URLs, visual screen evidence) without manual user intervention.
+* **Generate Legal-Ready Forensic Incident Reports** formatted for cybercrime reporting.
 
 ---
 
@@ -45,7 +45,6 @@ Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and c
 ```bash
 git clone [https://github.com/hephzibah3105-hue/AegisHer.git](https://github.com/hephzibah3105-hue/AegisHer.git)
 cd AegisHer
-
 2. (Optional) Train or Update the AI Model
 To train the model on updated datasets or custom threat categories:
 
