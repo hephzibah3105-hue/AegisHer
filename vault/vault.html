@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisHer — Secure Evidence Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --accent-blue: #38bdf8;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-main);
+      color: #f8fafc;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* Header Bar */
+    .vault-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin-bottom: 24px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .vault-icon {
+      font-size: 32px;
+      background: linear-gradient(135deg, #ef4444, #8b5cf6);
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+
+    .title-text h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #f8fafc, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-text p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-export {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-export:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(30, 41, 59, 0.8);
+      color: #cbd5e1;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(51, 65, 85, 0.9);
+      color: #ffffff;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    /* Stats summary */
+    .vault-summary {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .summary-chip {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .summary-chip strong {
+      color: #f8fafc;
+      font-weight: 700;
+    }
+
+    /* Incident Cards Grid */
+    .incident-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .incident-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .incident-card:hover {
+      border-color: rgba(239, 68, 68, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .incident-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .meta-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-type {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .score-tag {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .timestamp {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .incident-url {
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--accent-blue);
+      background: rgba(30, 41, 59, 0.6);
+      padding: 8px 12px;
+      border-radius: 8px;
+      word-break: break-all;
+      margin-bottom: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .snippet-box {
+      background: rgba(30, 41, 59, 0.4);
+      border-left: 3px solid var(--accent-red);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .snippet-box strong {
+      color: #f8fafc;
+    }
+
+    .screenshot-section {
+      margin-top: 14px;
+    }
+
+    .screenshot-section label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .screenshot-img {
+      max-width: 100%;
+      height: auto;
+      max-height: 340px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+      object-fit: contain;
+      background: #000;
+    }
+
+    .no-screenshot {
+      padding: 20px;
+      background: rgba(30, 41, 59, 0.3);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .incident-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      background: var(--card-bg);
+      border: 1px dashed var(--border-color);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      color: #f8fafc;
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="vault-header">
+      <div class="brand-title">
+        <div class="vault-icon">🔐</div>
+        <div class="title-text">
+          <h1>AegisHer Evidence Vault</h1>
+          <p>Tamper-Evident Cyber Harassment & Threat Evidence Storage</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" id="seed-demo-btn">
+          <span>+ Add Demo Incident</span>
+        </button>
+        <button class="btn btn-export" id="export-all-btn">
+          <span>📥 Export Incident Report</span>
+        </button>
+        <button class="btn btn-danger" id="clear-vault-btn">
+          <span>🗑️ Clear Vault</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary chip bar -->
+    <div class="vault-summary">
+      <div class="summary-chip">
+        <span>Total Incidents Vaulted:</span>
+        <strong id="total-count">0</strong>
+      </div>
+      <div class="summary-chip">
+        <span>Status:</span>
+        <strong style="color: #10b981;">Encrypted Local Storage Active</strong>
+      </div>
+    </div>
+
+    <!-- Incident Cards List -->
+    <div class="incident-list" id="incident-list">
+      <!-- Injected via vault.js -->
+    </div>
+  </div>
+
+  <script src="vault.js"></script>
+</body>
+</html>

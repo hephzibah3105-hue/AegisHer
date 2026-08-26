@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisHer — Security & Intelligence Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(56, 189, 248, 0.15);
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: #f8fafc;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .dashboard-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* Navbar */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 16px 28px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0284c7, #7c3aed);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 0 20px rgba(2, 132, 199, 0.4);
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      background: linear-gradient(90deg, #38bdf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #10b981;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+
+    /* Grid Layout */
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .grid-two {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 14px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #f8fafc;
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Section 1: Identity Shield Check */
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .search-input {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #f8fafc;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .btn {
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cyan {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-cyan:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+
+    .breach-result-card {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .breach-status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge-breach {
+      background: rgba(244, 63, 94, 0.2);
+      color: #f43f5e;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .breach-details {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .tag {
+      background: rgba(51, 65, 85, 0.6);
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    /* Section 2: Deepfake Analysis Upload UI */
+    .dropzone {
+      border: 2px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      padding: 28px 20px;
+      text-align: center;
+      background: rgba(15, 23, 42, 0.4);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 16px;
+    }
+
+    .dropzone:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .dropzone-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .dropzone-text {
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .dropzone-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .demo-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .btn-outline {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--card-border);
+      color: #cbd5e1;
+      padding: 8px 12px;
+      font-size: 11px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--accent-cyan);
+      color: #fff;
+    }
+
+    .deepfake-result {
+      background: rgba(30, 41, 59, 0.5);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .result-score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .score-meter-bg {
+      width: 100%;
+      height: 10px;
+      background: #1e293b;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .score-meter-fill {
+      height: 100%;
+      width: 94%;
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+      border-radius: 5px;
+      transition: width 0.6s ease;
+    }
+
+    .breakdown-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .breakdown-item {
+      display: flex;
+      justify-content: space-between;
+      color: #cbd5e1;
+    }
+
+    /* Section 3: Cyber Harassment Heatmap Widget */
+    .heatmap-section {
+      width: 100%;
+    }
+
+    .heatmap-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .heatmap-filters {
+      display: flex;
+      gap: 8px;
+    }
+
+    .filter-btn {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn.active {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
+
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: 120px repeat(7, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .heatmap-cell {
+      height: 42px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+    }
+
+    .heatmap-cell:hover {
+      transform: scale(1.06);
+      z-index: 10;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    }
+
+    .cell-label {
+      background: transparent;
+      justify-content: flex-start;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .cell-day-header {
+      background: transparent;
+      height: 24px;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Heatmap intensity colors */
+    .level-0 { background: rgba(30, 41, 59, 0.4); color: #64748b; }
+    .level-1 { background: rgba(16, 185, 129, 0.3); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .level-2 { background: rgba(245, 158, 11, 0.4); border: 1px solid rgba(245, 158, 11, 0.5); }
+    .level-3 { background: rgba(239, 68, 68, 0.6); border: 1px solid rgba(239, 68, 68, 0.7); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+    .level-4 { background: linear-gradient(135deg, #ef4444, #9333ea); border: 1px solid #f43f5e; box-shadow: 0 0 15px rgba(244, 63, 94, 0.5); }
+
+    .tooltip {
+      position: absolute;
+      bottom: 110%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      border: 1px solid var(--accent-cyan);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 10px;
+      white-space: nowrap;
+      pointer-events: none;
+      display: none;
+      z-index: 100;
+    }
+
+    .heatmap-cell:hover .tooltip {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Navbar -->
+    <div class="navbar">
+      <div class="brand">
+        <div class="logo-badge">🛡️</div>
+        <div>
+          <div class="brand-title">AegisHer Security & Intelligence</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Real-Time Threat Analytics & Protection Suite</div>
+        </div>
+      </div>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span>AI Mesh Protection Active</span>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid-two">
+      <!-- Section 1: Identity Shield Check -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔍 Identity Shield Check</div>
+            <div class="card-subtitle">Scan breach databases for exposed emails, usernames, or phones</div>
+          </div>
+        </div>
+
+        <div class="search-box">
+          <input type="text" id="identity-input" class="search-input" placeholder="e.g. user@example.com or +1 (555) 019-2831" value="jane.doe@cybersec.org">
+          <button class="btn btn-cyan" id="identity-search-btn">Scan Now</button>
+        </div>
+
+        <div class="breach-result-card" id="breach-result-box">
+          <div class="breach-status-header">
+            <strong style="color: #f8fafc; font-size: 13px;">Target: jane.doe@cybersec.org</strong>
+            <span class="badge-breach">3 Breaches Found</span>
+          </div>
+          <div class="breach-details">
+            Warning: This identity was found in <strong>3 data breaches</strong> (SocialNet 2024, BreachDump, DarkMarket Leak).
+            <div class="tag-list">
+              <span class="tag">Plaintext Passwords</span>
+              <span class="tag">IP Addresses</span>
+              <span class="tag">Geo Location</span>
+              <span class="tag">Phone Numbers</span>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--accent-emerald); font-weight: 600; margin-top: 4px;">
+            💡 AegisHer Recommendation: Enable 2FA immediately & change account passwords.
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Deepfake Analysis Upload UI -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🎭 Deepfake & Synthetic Media Detector</div>
+            <div class="card-subtitle">AI forensic analysis for facial swap and synthetic image manipulation</div>
+          </div>
+        </div>
+
+        <div class="dropzone" id="deepfake-dropzone">
+          <div class="dropzone-icon">📤</div>
+          <div class="dropzone-text">Drag & drop image or video file here</div>
+          <div class="dropzone-hint">Supports PNG, JPG, MP4 (Max 50MB)</div>
+        </div>
+
+        <div class="demo-buttons">
+          <button class="btn-outline" id="demo-deepfake-btn">Load Deepfake Sample</button>
+          <button class="btn-outline" id="demo-authentic-btn">Load Authentic Sample</button>
+        </div>
+
+        <div class="deepfake-result" id="deepfake-result-box">
+          <div class="result-score-row">
+            <span style="font-size: 13px; font-weight: 600;">Deepfake Manipulation Confidence</span>
+            <span style="font-size: 16px; font-weight: 800; color: #ef4444;" id="deepfake-score-text">94% (HIGH)</span>
+          </div>
+          <div class="score-meter-bg">
+            <div class="score-meter-fill" id="deepfake-score-fill" style="width: 94%;"></div>
+          </div>
+
+          <div class="breakdown-list">
+            <div class="breakdown-item">
+              <span>Facial Boundary Artifacts</span>
+              <strong style="color: #ef4444;" id="val-facial">96 / 100</strong>
+            </div>
+            <div class="breakdown-item">
+              <span>Lighting & Spectral Inconsistency</span>
+              <strong style="color: #f59e0b;" id="val-lighting">88 / 100</strong>
+            </div>
+            <div class="breakdown-item">
+              <span>GAN Frequency Anomaly</span>
+              <strong style="color: #ef4444;" id="val-gan">92 / 100</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Cyber Harassment Heatmap Widget -->
+    <div class="card heatmap-section">
+      <div class="heatmap-header">
+        <div>
+          <div class="card-title">🔥 Cyber Harassment Activity Heatmap</div>
+          <div class="card-subtitle">Weekly threat intensity & incident distribution across platforms</div>
+        </div>
+        <div class="heatmap-filters">
+          <button class="filter-btn active" data-filter="ALL">All Threats</button>
+          <button class="filter-btn" data-filter="EXTORTION">Extortion</button>
+          <button class="filter-btn" data-filter="STALKING">Cyberstalking</button>
+          <button class="filter-btn" data-filter="PHISHING">Phishing</button>
+        </div>
+      </div>
+
+      <!-- Heatmap Table Matrix -->
+      <div class="heatmap-grid" id="heatmap-grid-container">
+        <!-- Rendered by dashboard.js -->
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

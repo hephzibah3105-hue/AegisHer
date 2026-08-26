@@ -1,0 +1,230 @@
+/* AegisHer Content Script Styles */
+
+/* 1. Floating Translucent Shield Indicator */
+#aegis-shield-widget {
+  position: fixed !important;
+  top: 18px !important;
+  right: 18px !important;
+  z-index: 9999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 16px !important;
+  background: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #f8fafc !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+#aegis-shield-widget:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  border-color: rgba(56, 189, 248, 0.6) !important;
+  box-shadow: 0 14px 30px -5px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.4) !important;
+}
+
+#aegis-shield-widget .aegis-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background-color: #10b981 !important;
+  box-shadow: 0 0 8px #10b981 !important;
+  animation: aegis-pulse 2s infinite !important;
+}
+
+#aegis-shield-widget.aegis-alert-state {
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5) !important;
+}
+
+#aegis-shield-widget.aegis-alert-state .aegis-dot {
+  background-color: #ef4444 !important;
+  box-shadow: 0 0 10px #ef4444 !important;
+}
+
+@keyframes aegis-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+/* 2. High-Risk Link Warning Modal Overlay */
+#aegis-risk-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  z-index: 99999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  animation: aegis-fade-in 0.25s ease-out !important;
+}
+
+#aegis-risk-modal {
+  width: 90% !important;
+  max-width: 520px !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(239, 68, 68, 0.25) !important;
+  color: #f8fafc !important;
+}
+
+.aegis-modal-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+.aegis-modal-icon {
+  font-size: 28px !important;
+}
+
+.aegis-modal-title {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #f87171 !important;
+  margin: 0 !important;
+}
+
+.aegis-modal-url {
+  background: #1e293b !important;
+  padding: 10px 14px !important;
+  border-radius: 8px !important;
+  font-family: monospace !important;
+  font-size: 12px !important;
+  word-break: break-all !important;
+  color: #38bdf8 !important;
+  border: 1px solid #334155 !important;
+  margin-bottom: 16px !important;
+}
+
+.aegis-score-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 12px !important;
+}
+
+.aegis-score-bar-bg {
+  width: 100% !important;
+  height: 8px !important;
+  background: #334155 !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  margin-bottom: 16px !important;
+}
+
+.aegis-score-bar-fill {
+  height: 100% !important;
+  background: linear-gradient(90deg, #f59e0b, #ef4444) !important;
+  transition: width 0.4s ease-out !important;
+}
+
+.aegis-factors-list {
+  background: rgba(30, 41, 59, 0.5) !important;
+  border-radius: 8px !important;
+  padding: 12px 16px !important;
+  margin-bottom: 20px !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+.aegis-factors-list ul {
+  margin: 6px 0 0 0 !important;
+  padding-left: 20px !important;
+  color: #cbd5e1 !important;
+}
+
+.aegis-modal-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.aegis-btn {
+  padding: 10px 18px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.aegis-btn-cancel {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+}
+
+.aegis-btn-cancel:hover {
+  background: #059669 !important;
+}
+
+.aegis-btn-proceed {
+  background: transparent !important;
+  color: #94a3b8 !important;
+  border: 1px solid #475569 !important;
+}
+
+.aegis-btn-proceed:hover {
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* 3. Vaulted Evidence Toast Notification */
+#aegis-toast-alert {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 99999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 20px !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 0 20px rgba(239, 68, 68, 0.3) !important;
+  color: #f8fafc !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px !important;
+  animation: aegis-slide-up 0.3s ease-out !important;
+}
+
+@keyframes aegis-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes aegis-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
