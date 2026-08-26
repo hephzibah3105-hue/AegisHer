@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AegisHer — Security & Intelligence Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg-dark: #070a12;
@@ -78,6 +80,7 @@
       font-weight: 800;
       background: linear-gradient(90deg, #38bdf8, #c084fc);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
@@ -420,11 +423,32 @@
     }
 
     /* Heatmap intensity colors */
-    .level-0 { background: rgba(30, 41, 59, 0.4); color: #64748b; }
-    .level-1 { background: rgba(16, 185, 129, 0.3); border: 1px solid rgba(16, 185, 129, 0.4); }
-    .level-2 { background: rgba(245, 158, 11, 0.4); border: 1px solid rgba(245, 158, 11, 0.5); }
-    .level-3 { background: rgba(239, 68, 68, 0.6); border: 1px solid rgba(239, 68, 68, 0.7); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
-    .level-4 { background: linear-gradient(135deg, #ef4444, #9333ea); border: 1px solid #f43f5e; box-shadow: 0 0 15px rgba(244, 63, 94, 0.5); }
+    .level-0 {
+      background: rgba(30, 41, 59, 0.4);
+      color: #64748b;
+    }
+
+    .level-1 {
+      background: rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .level-2 {
+      background: rgba(245, 158, 11, 0.4);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+    }
+
+    .level-3 {
+      background: rgba(239, 68, 68, 0.6);
+      border: 1px solid rgba(239, 68, 68, 0.7);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+
+    .level-4 {
+      background: linear-gradient(135deg, #ef4444, #9333ea);
+      border: 1px solid #f43f5e;
+      box-shadow: 0 0 15px rgba(244, 63, 94, 0.5);
+    }
 
     .tooltip {
       position: absolute;
@@ -447,6 +471,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="dashboard-container">
     <!-- Navbar -->
@@ -476,7 +501,8 @@
         </div>
 
         <div class="search-box">
-          <input type="text" id="identity-input" class="search-input" placeholder="e.g. user@example.com or +1 (555) 019-2831" value="jane.doe@cybersec.org">
+          <input type="text" id="identity-input" class="search-input"
+            placeholder="e.g. user@example.com or +1 (555) 019-2831" value="jane.doe@cybersec.org">
           <button class="btn btn-cyan" id="identity-search-btn">Scan Now</button>
         </div>
 
@@ -486,7 +512,8 @@
             <span class="badge-breach">3 Breaches Found</span>
           </div>
           <div class="breach-details">
-            Warning: This identity was found in <strong>3 data breaches</strong> (SocialNet 2024, BreachDump, DarkMarket Leak).
+            Warning: This identity was found in <strong>3 data breaches</strong> (SocialNet 2024, BreachDump, DarkMarket
+            Leak).
             <div class="tag-list">
               <span class="tag">Plaintext Passwords</span>
               <span class="tag">IP Addresses</span>
@@ -510,9 +537,10 @@
         </div>
 
         <div class="dropzone" id="deepfake-dropzone">
-          <div class="dropzone-icon">📤</div>
-          <div class="dropzone-text">Drag & drop image or video file here</div>
-          <div class="dropzone-hint">Supports PNG, JPG, MP4 (Max 50MB)</div>
+          <input type="file" id="deepfake-file-input" accept="image/*,video/*" style="display: none;" />
+          <div class="dropzone-icon" id="dropzone-icon">📤</div>
+          <div class="dropzone-text" id="dropzone-text">Drag &amp; drop image or video file here</div>
+          <div class="dropzone-hint" id="dropzone-hint">Supports PNG, JPG, MP4 (Max 50MB)</div>
         </div>
 
         <div class="demo-buttons">
@@ -547,28 +575,52 @@
       </div>
     </div>
 
-    <!-- Section 3: Cyber Harassment Heatmap Widget -->
+    <!-- Section 3: Global & Regional Cyber Threat Trend Intelligence -->
     <div class="card heatmap-section">
       <div class="heatmap-header">
         <div>
-          <div class="card-title">🔥 Cyber Harassment Activity Heatmap</div>
-          <div class="card-subtitle">Weekly threat intensity & incident distribution across platforms</div>
+          <div class="card-title">🌐 Global Cyber Threat Intelligence & Trend Matrix</div>
+          <div class="card-subtitle">Real-time attack volume index across major communication vectors & regions</div>
         </div>
-        <div class="heatmap-filters">
-          <button class="filter-btn active" data-filter="ALL">All Threats</button>
-          <button class="filter-btn" data-filter="EXTORTION">Extortion</button>
-          <button class="filter-btn" data-filter="STALKING">Cyberstalking</button>
-          <button class="filter-btn" data-filter="PHISHING">Phishing</button>
+
+        <!-- Region & Category Filter Controls -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <!-- Region Selector -->
+          <select id="heatmap-region-select"
+            style="background: rgba(30, 41, 59, 0.8); border: 1px solid var(--card-border); color: #f8fafc; padding: 6px 12px; border-radius: 10px; font-size: 11.5px; outline: none; cursor: pointer;">
+            <option value="GLOBAL">🌍 Global Aggregate</option>
+            <option value="APAC">🌏 Asia-Pacific (APAC)</option>
+            <option value="NA">🌎 North America</option>
+            <option value="EU">🌍 Europe & UK</option>
+          </select>
+
+          <!-- Category Filter Tabs -->
+          <div class="heatmap-filters">
+            <button class="filter-btn active" data-filter="ALL">All Threat Vectors</button>
+            <button class="filter-btn" data-filter="DEEPFAKE">Deepfake Extortion</button>
+            <button class="filter-btn" data-filter="STALKING">Cyberstalking</button>
+            <button class="filter-btn" data-filter="PHISHING">Impersonation Phish</button>
+          </div>
         </div>
       </div>
 
-      <!-- Heatmap Table Matrix -->
+      <!-- Real-Time Trend Headline Banner -->
+      <div id="heatmap-trend-banner"
+        style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 11.5px; color: #cbd5e1; display: flex; align-items: center; justify-content: space-between;">
+        <span id="trend-headline">📡 <strong>Live Intelligence:</strong> Monitoring active digital gender-based violence
+          & extortion trends worldwide.</span>
+        <span id="trend-risk-tag"
+          style="background: rgba(244, 63, 94, 0.2); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.4); padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 10px;">HIGH
+          ACTIVITY</span>
+      </div>
+
+      <!-- Heatmap Matrix Grid -->
       <div class="heatmap-grid" id="heatmap-grid-container">
-        <!-- Rendered by dashboard.js -->
+        <!-- Rendered dynamically by dashboard.js -->
       </div>
     </div>
-  </div>
 
-  <script src="dashboard.js"></script>
+    <script src="dashboard.js"></script>
 </body>
+
 </html>

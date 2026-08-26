@@ -9,6 +9,10 @@
     "tabs",
     "scripting"
   ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://api.pwnedpasswords.com/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html"
   },
