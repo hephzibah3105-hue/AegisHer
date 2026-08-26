@@ -134,7 +134,7 @@ test.html Sandbox Code
 </html>
 ```
 
-### 🔍 Verification Steps
+### 🔍 Verification Steps.
 
 URL Interception: Click the red link in test.html. AegisHer halts navigation and displays the Security Warning Modal with risk breakdown.
 
