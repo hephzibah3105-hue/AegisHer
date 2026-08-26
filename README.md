@@ -14,7 +14,7 @@ Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and c
 * **Automatically Capture & Vault Forensic Evidence** (DOM snapshots, timestamps, URLs, visual screen evidence) without manual user intervention.
 * **Generate Legal-Ready Forensic Incident Reports** formatted for cybercrime reporting.
 
----
+-----
 
 ## ⚙️ Key Features
 
@@ -25,7 +25,7 @@ Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and c
 * 📄 **Forensic Incident Export:** Generates standardized `.txt` evidence digests for cyber cell documentation.
 * 📊 **Security Dashboard & Identity Shield:** Provides breach analysis, social media exposure risk indicators, and deepfake inspection modules.
 
----
+-----
 
 ## 🛠️ Architecture & Tech Stack
 
