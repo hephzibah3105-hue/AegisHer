@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AegisHer — Secure Evidence Vault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg-main: #0b0f19;
@@ -49,7 +51,7 @@
       border-radius: 16px;
       padding: 20px 24px;
       backdrop-filter: blur(12px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
       margin-bottom: 24px;
     }
 
@@ -319,6 +321,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <!-- Header -->
@@ -331,36 +334,33 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="btn btn-secondary" id="seed-demo-btn">
-          <span>+ Add Demo Incident</span>
-        </button>
-        <button class="btn btn-export" id="export-all-btn">
-          <span>📥 Export Incident Report</span>
-        </button>
-        <button class="btn btn-danger" id="clear-vault-btn">
-          <span>🗑️ Clear Vault</span>
-        </button>
+        <button id="add-demo-btn" class="btn btn-secondary">＋ Add Demo Incident</button>
+        <button id="export-txt-btn" class="btn btn-primary">📄 Export TXT Report</button>
+        <button id="export-pdf-btn" class="btn btn-primary"
+          style="background: linear-gradient(135deg, #0284c7, #2563eb);">📑 Export PDF Report</button>
+        <button id="clear-vault-btn" class="btn btn-danger">🗑️ Clear Vault</button>
+      </div>
+
+      <!-- Summary chip bar -->
+      <div class="vault-summary">
+        <div class="summary-chip">
+          <span>Total Incidents Vaulted:</span>
+          <strong id="total-count">0</strong>
+        </div>
+        <div class="summary-chip">
+          <span>Status:</span>
+          <strong style="color: #10b981;">Encrypted Local Storage Active</strong>
+        </div>
+      </div>
+
+      <!-- Incident Cards List -->
+      <div class="incident-list" id="incident-list">
+        <!-- Injected via vault.js -->
       </div>
     </div>
 
-    <!-- Summary chip bar -->
-    <div class="vault-summary">
-      <div class="summary-chip">
-        <span>Total Incidents Vaulted:</span>
-        <strong id="total-count">0</strong>
-      </div>
-      <div class="summary-chip">
-        <span>Status:</span>
-        <strong style="color: #10b981;">Encrypted Local Storage Active</strong>
-      </div>
-    </div>
-
-    <!-- Incident Cards List -->
-    <div class="incident-list" id="incident-list">
-      <!-- Injected via vault.js -->
-    </div>
-  </div>
-
-  <script src="vault.js"></script>
+    <script src="jspdf.umd.min.js"></script>
+    <script src="vault.js"></script>
 </body>
+
 </html>

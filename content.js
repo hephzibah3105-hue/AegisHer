@@ -392,16 +392,20 @@
     let totalScore = 0;
     const matchesFound = [];
     let primaryCategory = 'SECURITY_THREAT';
+    let maxWeight = 0;
     let snippet = '';
 
     for (const pattern of THREAT_PATTERNS) {
       const match = pageText.match(pattern.regex);
       if (match) {
         totalScore += pattern.weight;
-        primaryCategory = pattern.category;
         matchesFound.push(match[0]);
 
-        if (!snippet) {
+        // Prioritize highest-severity threat category and its matching text context
+        if (pattern.weight > maxWeight) {
+          maxWeight = pattern.weight;
+          primaryCategory = pattern.category;
+
           const matchIndex = match.index || 0;
           const start = Math.max(0, matchIndex - 50);
           const end = Math.min(pageText.length, matchIndex + match[0].length + 50);
@@ -415,9 +419,9 @@
     if (totalScore >= 75 && !hasVaultedEvidence) {
       hasVaultedEvidence = true;
       currentDetectedThreatCount = matchesFound.length || 1;
-      console.log(`[AegisHer Engine] High-risk threat detected (${totalScore}/100) in category: ${primaryCategory}`);
+
       if (typeof updateShieldState === 'function') {
-        updateShieldState(true, `🚨 AegisHer — THREAT VAULTED (${totalScore}/100)`);
+        updateShieldState(true, `🛡️ AegisHer — THREAT VAULTED (${totalScore}/100)`);
       }
 
       chrome.runtime.sendMessage({
@@ -425,13 +429,13 @@
         score: totalScore,
         threatType: primaryCategory,
         matches: matchesFound,
-        snippet: snippet || pageText.slice(0, 200),
+        snippet: snippet || pageText.substring(0, 180),
         url: window.location.href,
-        title: document.title
-      }, (response) => {
+        title: document.title || 'Security Incident'
+      }, () => {
         if (chrome.runtime.lastError) return;
         if (typeof showToastAlert === 'function') {
-          showToastAlert(`🚨 AegisHer Shield: ${primaryCategory.replace(/_/g, ' ')} (${totalScore}/100) Detected! Evidence automatically captured & vaulted.`);
+          showToastAlert(`🚨 AegisHer Shield: ${primaryCategory.replace(/_/g, ' ')} (${totalScore}/100)`);
         }
       });
     }
@@ -478,62 +482,60 @@
 
   // Expose test helper on window for manual testing if needed
   window.__AegisHerTestScan = scanPageTextThreats;
+  function enableWidgetDragging(widget) {
+    let isDragging = false;
+    let startX, startY;
+    let startLeft, startTop;
 
+    widget.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // Only trigger on left-click
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = widget.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+
+      // Reset right/bottom styles with !important override to stop stretching
+      widget.style.setProperty('right', 'auto', 'important');
+      widget.style.setProperty('bottom', 'auto', 'important');
+      widget.style.setProperty('left', `${startLeft}px`, 'important');
+      widget.style.setProperty('top', `${startTop}px`, 'important');
+      widget.style.setProperty('cursor', 'grabbing', 'important');
+
+      function onMouseMove(event) {
+        if (!isDragging) return;
+        event.preventDefault();
+
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+
+        let newLeft = startLeft + deltaX;
+        let newTop = startTop + deltaY;
+
+        // Keep entirely within browser boundaries
+        const maxLeft = window.innerWidth - widget.offsetWidth - 12;
+        const maxTop = window.innerHeight - widget.offsetHeight - 12;
+
+        newLeft = Math.max(12, Math.min(newLeft, maxLeft));
+        newTop = Math.max(12, Math.min(newTop, maxTop));
+
+        widget.style.setProperty('left', `${newLeft}px`, 'important');
+        widget.style.setProperty('top', `${newTop}px`, 'important');
+      }
+
+      function onMouseUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        widget.style.setProperty('cursor', 'grab', 'important');
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      }
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
 })();
-
-function enableWidgetDragging(widget) {
-  let isDragging = false;
-  let startX, startY;
-  let startLeft, startTop;
-
-  widget.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // Only trigger on left-click
-
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-
-    const rect = widget.getBoundingClientRect();
-    startLeft = rect.left;
-    startTop = rect.top;
-
-    // Reset right/bottom styles with !important override to stop stretching
-    widget.style.setProperty('right', 'auto', 'important');
-    widget.style.setProperty('bottom', 'auto', 'important');
-    widget.style.setProperty('left', `${startLeft}px`, 'important');
-    widget.style.setProperty('top', `${startTop}px`, 'important');
-    widget.style.setProperty('cursor', 'grabbing', 'important');
-
-    function onMouseMove(event) {
-      if (!isDragging) return;
-      event.preventDefault();
-
-      const deltaX = event.clientX - startX;
-      const deltaY = event.clientY - startY;
-
-      let newLeft = startLeft + deltaX;
-      let newTop = startTop + deltaY;
-
-      // Keep entirely within browser boundaries
-      const maxLeft = window.innerWidth - widget.offsetWidth - 12;
-      const maxTop = window.innerHeight - widget.offsetHeight - 12;
-
-      newLeft = Math.max(12, Math.min(newLeft, maxLeft));
-      newTop = Math.max(12, Math.min(newTop, maxTop));
-
-      widget.style.setProperty('left', `${newLeft}px`, 'important');
-      widget.style.setProperty('top', `${newTop}px`, 'important');
-    }
-
-    function onMouseUp() {
-      if (!isDragging) return;
-      isDragging = false;
-      widget.style.setProperty('cursor', 'grab', 'important');
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    }
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  });
-}

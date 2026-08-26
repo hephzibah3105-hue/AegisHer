@@ -68,31 +68,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         <div class="screenshot-section">
           <label>📸 Captured Tab Evidence Screenshot:</label>
-          ${
-            item.screenshot
-              ? `<img src="${item.screenshot}" alt="Evidence Screenshot" class="screenshot-img" />`
-              : `<div class="no-screenshot">Screenshot unavailable for this entry.</div>`
-          }
+          ${item.screenshot
+          ? `<img src="${item.screenshot}" alt="Evidence Screenshot" class="screenshot-img" />`
+          : `<div class="no-screenshot">Screenshot unavailable for this entry.</div>`
+        }
         </div>
 
-        <div class="incident-actions">
-          <button class="btn btn-secondary export-single-btn" data-index="${index}">
-            <span>📄 Export This Incident (.txt)</span>
-          </button>
-          <button class="btn btn-danger delete-single-btn" data-index="${index}">
-            <span>Delete</span>
-          </button>
-        </div>
+        <div class="incident-actions" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+        <button class="btn btn-secondary export-single-txt" data-id="${item.id}" style="font-size: 12px; padding: 6px 12px;">📄 Export TXT</button>
+        <button class="btn btn-primary export-single-pdf" data-id="${item.id}" style="font-size: 12px; padding: 6px 12px; background: linear-gradient(135deg, #0284c7, #2563eb);">📑 Export PDF</button>
+        <button class="btn btn-danger delete-single-btn" data-index="${index}" style="font-size: 12px; padding: 6px 12px;">Delete</button>
+      </div>
       `;
 
       incidentListEl.appendChild(card);
     });
 
-    // Attach button listeners
-    document.querySelectorAll('.export-single-btn').forEach(btn => {
+    // Attach button listeners for individual card exports
+    document.querySelectorAll('.export-single-txt').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
-        exportSingleIncidentReport(currentVault[idx]);
+        const incidentId = e.currentTarget.getAttribute('data-id');
+        const item = currentVault.find(v => v.id === incidentId);
+        if (item) exportSingleIncidentReportTXT(item);
+      });
+    });
+
+    document.querySelectorAll('.export-single-pdf').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const incidentId = e.currentTarget.getAttribute('data-id');
+        const item = currentVault.find(v => v.id === incidentId);
+        if (item) exportSingleIncidentReportPDF(item);
       });
     });
 
@@ -104,59 +109,193 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 3. Export Full Incident Report (.txt)
-  function exportFullIncidentReport() {
+  // --- 3A. Full Incident TXT Exporter ---
+  function exportFullIncidentReportTXT() {
     if (!currentVault || currentVault.length === 0) {
       alert('No vaulted incidents available to export.');
       return;
     }
 
-    let reportText = `========================================================================\n`;
-    reportText += `                AEGISHER OFFICIAL INCIDENT REPORT               \n`;
-    reportText += `             Tamper-Evident Cyber Harassment Evidence           \n`;
-    reportText += `========================================================================\n\n`;
+    let reportText = `======================================================================\n`;
+    reportText += `               AEGISHER OFFICIAL INCIDENT REPORT                     \n`;
+    reportText += `            Tamper-Evident Cyber Harassment Evidence                 \n`;
+    reportText += `======================================================================\n\n`;
     reportText += `Generated Date: ${new Date().toISOString()}\n`;
     reportText += `Total Incidents Recorded: ${currentVault.length}\n`;
     reportText += `System Integrity: AEGISHER AI PROTECTION SHIELD V1.0\n\n`;
 
     currentVault.forEach((item, idx) => {
-      reportText += `------------------------------------------------------------------------\n`;
+      reportText += `----------------------------------------------------------------------\n`;
       reportText += `INCIDENT #${idx + 1} | ID: ${item.id}\n`;
-      reportText += `------------------------------------------------------------------------\n`;
-      reportText += `Timestamp    : ${item.timestamp}\n`;
-      reportText += `Threat Type  : ${item.threatType}\n`;
-      reportText += `Threat Score : ${item.threatScore} / 100\n`;
-      reportText += `Target URL   : ${item.url}\n`;
-      reportText += `Page Title   : ${item.title}\n`;
-      reportText += `Matched Terms: ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
-      reportText += `EXTRACTED TEXT EVIDENCE:\n`;
-      reportText += `"${item.snippet}"\n\n`;
+      reportText += `----------------------------------------------------------------------\n`;
+      reportText += `Timestamp     : ${item.timestamp}\n`;
+      reportText += `Threat Type   : ${item.threatType || item.category || 'THREAT_DETECTED'}\n`;
+      reportText += `Threat Score  : ${item.threatScore || 85} / 100\n`;
+      reportText += `Target URL    : ${item.url || 'N/A'}\n`;
+      reportText += `Page Title    : ${item.title || 'N/A'}\n`;
+      reportText += `Matched Terms : ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
+      reportText += `EXTRACTED EVIDENCE TEXT:\n`;
+      reportText += `"${item.snippet || 'No text snippet'}"\n\n`;
       reportText += `SCREENSHOT ATTACHMENT:\n`;
-      reportText += `${item.screenshot ? '[PNG Base64 Encoded Image Data Attached]' : '[No Screenshot]'}\n\n`;
+      reportText += `${item.screenshot ? '[PNG Base64 Encoded Image Data Attached]' : '[No Screenshot Recorded]'}\n\n`;
     });
 
-    reportText += `========================================================================\n`;
+    reportText += `======================================================================\n`;
     reportText += `END OF INCIDENT REPORT - AEGISHER LEGAL VAULT\n`;
-    reportText += `========================================================================\n`;
+    reportText += `======================================================================\n`;
 
     downloadFile(reportText, `AegisHer_Incident_Report_${Date.now()}.txt`, 'text/plain');
   }
 
-  function exportSingleIncidentReport(item) {
-    let reportText = `========================================================================\n`;
-    reportText += `                AEGISHER INCIDENT REPORT - ${item.id}           \n`;
-    reportText += `========================================================================\n\n`;
-    reportText += `Timestamp    : ${item.timestamp}\n`;
-    reportText += `Threat Category: ${item.threatType}\n`;
-    reportText += `Threat Score : ${item.threatScore} / 100\n`;
-    reportText += `Target URL   : ${item.url}\n`;
-    reportText += `Page Title   : ${item.title}\n`;
-    reportText += `Matched Terms: ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
-    reportText += `EXTRACTED EVIDENCE TEXT:\n`;
-    reportText += `"${item.snippet}"\n\n`;
-    reportText += `========================================================================\n`;
+  // --- 3B. Single Incident TXT Exporter ---
+  function exportSingleIncidentReportTXT(item) {
+    if (!item) return;
+    let reportText = `======================================================================\n`;
+    reportText += `     AEGISHER INCIDENT REPORT - ${item.id}\n`;
+    reportText += `======================================================================\n\n`;
+    reportText += `Timestamp      : ${item.timestamp}\n`;
+    reportText += `Threat Category: ${item.threatType || item.category || 'SECURITY_THREAT'}\n`;
+    reportText += `Threat Score   : ${item.threatScore || 85} / 100\n`;
+    reportText += `Target URL     : ${item.url || 'N/A'}\n`;
+    reportText += `Page Title     : ${item.title || 'N/A'}\n`;
+    reportText += `Matched Terms  : ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
+    reportText += `EXTRACTED EVIDENCE TEXT:\n"${item.snippet || 'No text snippet'}"\n\n`;
+    reportText += `======================================================================\n`;
 
     downloadFile(reportText, `Incident_${item.id}.txt`, 'text/plain');
+  }
+
+  // --- 3C. Single Incident PDF Exporter ---
+  function exportSingleIncidentReportPDF(item) {
+    if (!item) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AEGISHER -- SINGLE INCIDENT REPORT', 14, 16);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Incident ID: ${item.id} | Generated: ${new Date().toUTCString()}`, 14, 23);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(12, 36, 186, 48, 2, 2, 'FD');
+
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Category: ${item.threatType || item.category || 'SECURITY_THREAT'}`, 16, 44);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Timestamp: ${item.timestamp || 'N/A'}`, 16, 51);
+    doc.text(`Threat Score: ${item.threatScore || 85}/100`, 135, 51);
+    doc.text(`Target URL: ${item.url || 'N/A'}`, 16, 58);
+    doc.text(`Matched Patterns: ${item.matches ? item.matches.join(', ') : 'N/A'}`, 16, 65);
+
+    doc.setTextColor(225, 29, 72);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Extracted Evidence Payload:', 14, 94);
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'normal');
+    const snippet = item.snippet || 'No text snippet recorded';
+    const lines = doc.splitTextToSize(`"${snippet}"`, 182);
+    doc.text(lines, 14, 102);
+
+    if (item.screenshot && item.screenshot.startsWith('data:image')) {
+      try {
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Forensic Screenshot:', 14, 126);
+        doc.addImage(item.screenshot, 'JPEG', 14, 132, 140, 78);
+      } catch (e) {
+        console.warn('PDF image render skipped:', e);
+      }
+    }
+
+    doc.save(`Incident_${item.id}.pdf`);
+  }
+
+  // --- 3D. Full Dossier PDF Exporter ---
+  function exportFullIncidentReportPDF() {
+    if (!currentVault || currentVault.length === 0) {
+      alert('No vaulted incidents available to export.');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AEGISHER -- FORENSIC EVIDENCE DOSSIER', 14, 16);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toUTCString()} | Chain of Custody Verified`, 14, 23);
+
+    let yPos = 36;
+
+    currentVault.forEach((item, idx) => {
+      const hasImage = item.screenshot && item.screenshot.startsWith('data:image');
+      const cardHeight = hasImage ? 85 : 52;
+
+      if (yPos + cardHeight > 275) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(12, yPos, 186, cardHeight, 2, 2, 'FD');
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Incident #${idx + 1} [ID: ${item.id || 'N/A'}]`, 16, yPos + 7);
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Category: ${item.threatType || item.category || 'DETECTED THREAT'}`, 16, yPos + 13);
+      doc.text(`Threat Score: ${item.threatScore || 85}/100`, 135, yPos + 13);
+      doc.text(`Timestamp: ${item.timestamp || 'N/A'}`, 16, yPos + 19);
+      doc.text(`Target URL: ${item.url || 'Local Page / Direct Context'}`, 16, yPos + 25);
+
+      doc.setTextColor(225, 29, 72);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Extracted Evidence Payload:', 16, yPos + 32);
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'normal');
+      const snippet = item.snippet || 'No text snippet recorded';
+      const lines = doc.splitTextToSize(`"${snippet}"`, 175);
+      doc.text(lines, 16, yPos + 38);
+
+      if (hasImage) {
+        try {
+          doc.addImage(item.screenshot, 'JPEG', 16, yPos + 44, 60, 36);
+        } catch (e) {
+          console.warn('PDF image render skipped:', e);
+        }
+      }
+
+      yPos += cardHeight + 6;
+    });
+
+    doc.save(`AegisHer_Evidence_Report_${Date.now()}.pdf`);
   }
 
   function downloadFile(content, fileName, contentType) {
@@ -168,9 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
     URL.revokeObjectURL(a.href);
   }
 
-  // 4. Seed Demo Incident
+  // --- 4. Seed Demo Incident ---
   function seedDemoIncident() {
-    // Generate a simple sample image placeholder canvas for demo screenshot
     const canvas = document.createElement('canvas');
     canvas.width = 600;
     canvas.height = 300;
@@ -237,11 +375,19 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#039;');
   }
 
-  // Event Listeners
-  exportAllBtn.addEventListener('click', exportFullIncidentReport);
-  clearVaultBtn.addEventListener('click', clearAllVault);
-  seedDemoBtn.addEventListener('click', seedDemoIncident);
+  // --- Event Listeners ---
+  const clearBtn = document.getElementById('clear-vault-btn');
+  if (clearBtn) clearBtn.addEventListener('click', clearAllVault);
 
-  // Initialize
+  const demoBtn = document.getElementById('add-demo-btn') || document.getElementById('seed-demo-btn');
+  if (demoBtn) demoBtn.addEventListener('click', seedDemoIncident);
+
+  const exportTxtBtn = document.getElementById('export-txt-btn');
+  if (exportTxtBtn) exportTxtBtn.addEventListener('click', exportFullIncidentReportTXT);
+
+  const exportPdfBtn = document.getElementById('export-pdf-btn');
+  if (exportPdfBtn) exportPdfBtn.addEventListener('click', exportFullIncidentReportPDF);
+
+  // Initialize Vault Data
   loadVaultData();
 });
