@@ -275,3 +275,63 @@
     opacity: 1;
   }
 }
+
+/* 4. Active Page Isolation Mode Styles */
+.aegis-isolated-halo {
+  box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.55) !important;
+  border: 6px solid #ef4444 !important;
+  animation: aegis-pulse-red 3s infinite !important;
+}
+
+@keyframes aegis-pulse-red {
+  0% { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.55); }
+  50% { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.8); }
+  100% { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.55); }
+}
+
+#aegis-isolation-banner {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 54px !important;
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-bottom: 2px solid #ef4444 !important;
+  color: #f8fafc !important;
+  z-index: 2147483646 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 24px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  box-sizing: border-box !important;
+}
+
+#aegis-isolation-banner .banner-message {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+#aegis-isolation-banner .dismiss-btn {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  padding: 6px 14px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+#aegis-isolation-banner .dismiss-btn:hover {
+  background: rgba(239, 68, 68, 0.3) !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}

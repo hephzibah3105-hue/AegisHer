@@ -525,4 +525,114 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Real-Time Telemetry & Deepfake Module Execution
   fetchRealTimeThreatData();
   initDeepfakeModule();
+  initHoneypotModule();
 });
+
+function initHoneypotModule() {
+  const simBtn = document.getElementById('simulate-honeypot-btn');
+  if (simBtn) {
+    simBtn.onclick = () => {
+      // Send a simulated honeypot event
+      chrome.runtime.sendMessage({
+        action: 'HONEYPOT_TRIGGERED',
+        trapType: 'API_HOOK_ACCESS',
+        detail: 'Simulated scraper accessing window._aegisDecoyCredentials fake config object',
+        score: 95,
+        threatType: 'AUTOMATED_BOT',
+        url: window.location.href,
+        title: document.title
+      }, (response) => {
+        console.log('[AegisHer Dashboard] Honeypot trigger simulated.');
+        setTimeout(loadHoneypotTelemetry, 400);
+      });
+    };
+  }
+
+  loadHoneypotTelemetry();
+  // Listen for storage changes to refresh logs in real-time
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && (changes.aegis_honeypot_stats || changes.aegis_honeypot_logs)) {
+      loadHoneypotTelemetry();
+    }
+  });
+
+  // Listen for real-time alert broadcasts from the background worker
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'REALTIME_ALERT') {
+      console.log('[AegisHer Dashboard] Real-time alert broadcast received:', request.threat);
+      loadHoneypotTelemetry();
+    }
+  });
+}
+
+function loadHoneypotTelemetry() {
+  chrome.storage.local.get(['aegis_honeypot_logs', 'aegis_honeypot_stats'], (res) => {
+    const stats = res.aegis_honeypot_stats || { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 };
+    const logs = res.aegis_honeypot_logs || [];
+
+    // Update stats counter
+    const baitedCounter = document.getElementById('stats-total-baited');
+    if (baitedCounter) baitedCounter.textContent = stats.totalBaited;
+
+    // Update trap status labels
+    const inputStatus = document.getElementById('status-decoy-input');
+    const apiStatus = document.getElementById('status-api-hook');
+    const linkStatus = document.getElementById('status-decoy-link');
+
+    if (inputStatus) {
+      if (stats.decoyInput > 0) {
+        inputStatus.textContent = '🔴 TRIGGERED / BLOCKED';
+        inputStatus.style.color = '#f87171';
+      } else {
+        inputStatus.textContent = '🟢 ACTIVE / SECURE';
+        inputStatus.style.color = '#10b981';
+      }
+    }
+
+    if (apiStatus) {
+      if (stats.apiHook > 0) {
+        apiStatus.textContent = '🔴 TRIGGERED / BLOCKED';
+        apiStatus.style.color = '#f87171';
+      } else {
+        apiStatus.textContent = '🟢 ACTIVE / SECURE';
+        apiStatus.style.color = '#10b981';
+      }
+    }
+
+    if (linkStatus) {
+      if (stats.decoyLink > 0) {
+        linkStatus.textContent = '🔴 TRIGGERED / BLOCKED';
+        linkStatus.style.color = '#f87171';
+      } else {
+        linkStatus.textContent = '🟢 ACTIVE / SECURE';
+        linkStatus.style.color = '#10b981';
+      }
+    }
+
+    // Populate log stream
+    const container = document.getElementById('honeypot-log-container');
+    if (!container) return;
+
+    if (logs.length === 0) {
+      container.innerHTML = `<div style="color: var(--text-muted); font-size: 12px; font-style: italic; text-align: center; padding: 20px 0;">No scraper or automated interactions logged on decoy bait traps.</div>`;
+      return;
+    }
+
+    container.innerHTML = logs.map(item => {
+      const dateStr = new Date(item.timestamp).toLocaleTimeString();
+      return `
+        <div style="background: rgba(30, 41, 59, 0.5); border-left: 3px solid #ef4444; border-radius: 4px; padding: 10px 14px; font-size: 12.5px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="color: #f87171; font-size: 11px; text-transform: uppercase;">🚨 ${escapeHtml(item.matches[0])}</strong>
+            <span style="color: var(--text-muted); font-size: 11px;">${dateStr}</span>
+          </div>
+          <div style="color: #f8fafc; font-weight: 500;">${escapeHtml(item.snippet)}</div>
+          <div style="font-size: 11px; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+            <span>URL: ${escapeHtml(item.url)}</span>
+            <span style="font-weight: 700; color: #f43f5e;">Class: ${escapeHtml(item.threatType)} (${item.threatScore}/100)</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  });
+}

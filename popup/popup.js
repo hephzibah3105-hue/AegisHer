@@ -8,14 +8,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openVaultBtn = document.getElementById('open-vault-btn');
   const openDashboardBtn = document.getElementById('open-dashboard-btn');
 
-  // 1. Load toggle state and total vaulted evidence count
-  chrome.storage.local.get(['aegis_shield_active', 'aegis_evidence_vault'], (res) => {
+  // 1. Load toggle state, total vaulted evidence count, risks blocked, and honeypot stats
+  chrome.storage.local.get(['aegis_shield_active', 'aegis_evidence_vault', 'aegis_honeypot_stats', 'risks_blocked'], (res) => {
     const isActive = res.aegis_shield_active !== false;
     if (shieldToggle) shieldToggle.checked = isActive;
     updateStatusText(isActive);
 
     const vaultList = res.aegis_evidence_vault || [];
     if (statVaulted) statVaulted.textContent = vaultList.length;
+
+    if (statIntercepted) statIntercepted.textContent = res.risks_blocked || 0;
+
+    const hpStats = res.aegis_honeypot_stats || { totalBaited: 0 };
+    const alertBanner = document.getElementById('honeypot-alert-banner');
+    if (alertBanner) {
+      if (hpStats.totalBaited > 0) {
+        alertBanner.style.display = 'flex';
+      } else {
+        alertBanner.style.display = 'none';
+      }
+    }
+  });
+
+  // Clear banner and reset stats button listener
+  const clearBannerBtn = document.getElementById('dismiss-badge-btn');
+  if (clearBannerBtn) {
+    clearBannerBtn.addEventListener('click', () => {
+      chrome.action.setBadgeText({ text: '' });
+      chrome.storage.local.set({
+        aegis_honeypot_stats: { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 },
+        risks_blocked: 0
+      }, () => {
+        const alertBanner = document.getElementById('honeypot-alert-banner');
+        if (alertBanner) alertBanner.style.display = 'none';
+        if (statIntercepted) statIntercepted.textContent = '0';
+      });
+    });
+  }
+
+  // 1b. Listen for local storage modifications to dynamically update popup views in real-time
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local') {
+      if (changes.risks_blocked !== undefined) {
+        if (statIntercepted) statIntercepted.textContent = changes.risks_blocked.newValue || 0;
+      }
+      if (changes.aegis_evidence_vault !== undefined) {
+        if (statVaulted) statVaulted.textContent = changes.aegis_evidence_vault.newValue.length;
+      }
+      if (changes.aegis_honeypot_stats !== undefined) {
+        const alertBanner = document.getElementById('honeypot-alert-banner');
+        if (alertBanner) {
+          const newStats = changes.aegis_honeypot_stats.newValue || { totalBaited: 0 };
+          alertBanner.style.display = newStats.totalBaited > 0 ? 'flex' : 'none';
+        }
+      }
+    }
   });
 
   // 2. Fetch live metrics directly from the active tab
@@ -31,6 +78,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (statScanned) statScanned.textContent = response.linksScanned;
         if (statIntercepted) statIntercepted.textContent = response.risksBlocked;
+        
+        const alertBanner = document.getElementById('honeypot-alert-banner');
+        if (alertBanner && response.isIsolated) {
+          alertBanner.style.display = 'flex';
+        }
       });
     }
   } catch (err) {
@@ -59,6 +111,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
     });
   }
+
+  // Listen for real-time threat alerts broadcasted from background worker
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'REALTIME_ALERT') {
+      console.log('[AegisHer Popup] Real-time threat alert broadcast received:', request.threat);
+      const alertBanner = document.getElementById('honeypot-alert-banner');
+      if (alertBanner) {
+        alertBanner.style.display = 'flex';
+      }
+      // Refresh vaulted counter
+      chrome.storage.local.get(['aegis_evidence_vault'], (res) => {
+        const vaultList = res.aegis_evidence_vault || [];
+        if (statVaulted) statVaulted.textContent = vaultList.length;
+      });
+    }
+  });
 });
 
 function updateStatusText(active) {

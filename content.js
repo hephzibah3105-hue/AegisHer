@@ -11,6 +11,51 @@
   const linkRiskCache = new Map();
   let hasVaultedEvidence = false;
   let currentDetectedThreatCount = 0;
+  let isPageIsolated = false;
+
+  // Asynchronously load the Bayesian threat classifier model
+  let localModel = null;
+  const modelUrl = chrome.runtime.getURL('threat_model.json');
+  fetch(modelUrl)
+    .then(r => r.json())
+    .then(data => {
+      localModel = data;
+      console.log('[AegisHer] Bayesian Threat Model loaded successfully.');
+    })
+    .catch(err => console.error('[AegisHer] Failed to load threat model:', err));
+
+  // Helper to tokenize text matching train_model.py tokenization
+  function tokenizeText(text) {
+    if (!text) return [];
+    return text.toLowerCase().match(/\b\w+\b/g) || [];
+  }
+
+  // Naive Bayes prediction logic matching python classification
+  function predictNaiveBayes(tokens) {
+    if (!localModel || !localModel.classes || !localModel.priors || !localModel.likelihoods) {
+      return null;
+    }
+
+    let bestClass = null;
+    let maxScore = -Infinity;
+    const scoresByClass = {};
+
+    localModel.classes.forEach(cls => {
+      let score = localModel.priors[cls] || 0;
+      tokens.forEach(token => {
+        if (localModel.likelihoods[cls] && localModel.likelihoods[cls][token] !== undefined) {
+          score += localModel.likelihoods[cls][token];
+        }
+      });
+      scoresByClass[cls] = score;
+      if (score > maxScore) {
+        maxScore = score;
+        bestClass = cls;
+      }
+    });
+
+    return { bestClass, maxScore, scoresByClass };
+  }
 
   // Listen for Live Tab Metric requests from the popup
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -23,7 +68,8 @@
 
       sendResponse({
         linksScanned: validLinks.length,
-        risksBlocked: currentDetectedThreatCount
+        risksBlocked: currentDetectedThreatCount,
+        isIsolated: isPageIsolated
       });
       return true;
     }
@@ -416,6 +462,23 @@
 
     totalScore = Math.min(100, totalScore);
 
+    // Naive Bayes machine learning classification fallback
+    if (localModel && totalScore < 75) {
+      const tokens = tokenizeText(pageText);
+      const prediction = predictNaiveBayes(tokens);
+      if (prediction && prediction.bestClass !== 'SAFE') {
+        const mlWeight = localModel.threatWeights[prediction.bestClass] || 0;
+        if (mlWeight >= 75) {
+          totalScore = mlWeight;
+          primaryCategory = prediction.bestClass;
+          matchesFound.push(`ML Model Classified: ${prediction.bestClass}`);
+          if (!snippet) {
+            snippet = pageText.substring(0, 180).trim();
+          }
+        }
+      }
+    }
+
     if (totalScore >= 75 && !hasVaultedEvidence) {
       hasVaultedEvidence = true;
       currentDetectedThreatCount = matchesFound.length || 1;
@@ -464,6 +527,7 @@
   function init() {
     injectShieldWidget();
     scanPageTextThreats();
+    injectHoneypotTraps();
 
     // Observe DOM mutations to scan dynamic content (chat messages, comments, etc.)
     const observer = new MutationObserver(() => scanPageTextThreats());
@@ -479,6 +543,146 @@
   }
 
   window.addEventListener('load', () => setTimeout(scanPageTextThreats, 800));
+
+  // --- 5. Stealth Honeypot Traps & Active Page Isolation Engine ---
+  function injectHoneypotTraps() {
+    if (document.getElementById('aegis-decoy-input')) return;
+
+    // A. Inject Decoy Form Input (invisible to users, bait for autofillers/scrapers)
+    const decoyInput = document.createElement('input');
+    decoyInput.type = 'text';
+    decoyInput.id = 'aegis-decoy-input';
+    decoyInput.name = 'aegis_decoy_session_token';
+    decoyInput.value = 'token_live_8923f90ab82fcd890aef';
+    decoyInput.style.setProperty('position', 'absolute', 'important');
+    decoyInput.style.setProperty('left', '-9999px', 'important');
+    decoyInput.style.setProperty('top', '-9999px', 'important');
+    decoyInput.style.setProperty('width', '1px', 'important');
+    decoyInput.style.setProperty('height', '1px', 'important');
+    decoyInput.style.setProperty('opacity', '0.01', 'important');
+    decoyInput.style.setProperty('pointer-events', 'none', 'important');
+    decoyInput.tabIndex = -1;
+    decoyInput.autocomplete = 'off';
+
+    const triggerDecoy = (eventType) => {
+      reportHoneypotTrigger('DECOY_INPUT_INTERACTION', `Stealth decoy input "${decoyInput.name}" accessed via: ${eventType}`);
+    };
+
+    decoyInput.addEventListener('focus', () => triggerDecoy('focus'));
+    decoyInput.addEventListener('change', () => triggerDecoy('change'));
+    decoyInput.addEventListener('input', () => triggerDecoy('input'));
+    document.body.appendChild(decoyInput);
+
+    // B. Hook window._aegisDecoyCredentials is now loaded via inject.js running in MAIN world context.
+
+    // C. Inject Decoy Link Trap
+    const decoyLink = document.createElement('a');
+    decoyLink.href = 'https://aegis-decoy-trap.local/admin-login-portal';
+    decoyLink.id = 'aegis-decoy-link';
+    decoyLink.style.setProperty('position', 'absolute', 'important');
+    decoyLink.style.setProperty('left', '-9999px', 'important');
+    decoyLink.style.setProperty('top', '-9999px', 'important');
+    decoyLink.style.setProperty('width', '1px', 'important');
+    decoyLink.style.setProperty('height', '1px', 'important');
+    decoyLink.style.setProperty('opacity', '0.01', 'important');
+    decoyLink.style.setProperty('pointer-events', 'none', 'important');
+    decoyLink.tabIndex = -1;
+    decoyLink.textContent = 'Aegis Decoy Trap Link';
+
+    decoyLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      reportHoneypotTrigger('DECOY_LINK_CLICKED', 'Decoy link portal traversed by automation agent');
+    });
+    decoyLink.addEventListener('mouseover', () => {
+      reportHoneypotTrigger('DECOY_LINK_HOVERED', 'Decoy link portal hovered by crawler agent');
+    });
+    document.body.appendChild(decoyLink);
+  }
+
+  // Handle messages from the page-context script (API hook)
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.source === 'aegis-honeypot' && e.data.type === 'API_HOOK_TRIGGER') {
+      reportHoneypotTrigger('API_HOOK_ACCESS', e.data.detail);
+    }
+  });
+
+  function reportHoneypotTrigger(trapType, detail) {
+    if (isPageIsolated) return;
+
+    let prediction = 'AUTOMATED_BOT';
+    let score = 95;
+
+    if (localModel) {
+      const tokens = tokenizeText(detail);
+      const predictionRes = predictNaiveBayes(tokens);
+      if (predictionRes && predictionRes.bestClass !== 'SAFE') {
+        prediction = predictionRes.bestClass;
+        score = localModel.threatWeights[prediction] || 95;
+      }
+    }
+
+    chrome.runtime.sendMessage({
+      action: 'HONEYPOT_TRIGGERED',
+      trapType: trapType,
+      detail: detail,
+      score: score,
+      threatType: prediction,
+      url: window.location.href,
+      title: document.title || 'Honeypot Trap Page'
+    });
+
+    enablePageIsolation(trapType, detail);
+  }
+
+  function enablePageIsolation(trapType, detail) {
+    if (isPageIsolated) return;
+    isPageIsolated = true;
+
+    // Trigger red flashing outline
+    document.body.classList.add('aegis-isolated-halo');
+
+    // Mount visual isolation warning banner
+    let banner = document.getElementById('aegis-isolation-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'aegis-isolation-banner';
+      banner.innerHTML = `
+        <div class="banner-message">
+          <span>🚨</span>
+          <strong>AegisHer Active Isolation:</strong> Bot/scraper threat detected (${trapType}). Page isolated to block credentials leakage.
+        </div>
+        <button class="dismiss-btn" id="aegis-dismiss-isolation">Dismiss Shield</button>
+      `;
+      document.body.appendChild(banner);
+
+      document.getElementById('aegis-dismiss-isolation').addEventListener('click', () => {
+        if (confirm('AegisHer Warning: Are you sure you want to dismiss active page isolation? Malicious scripts could harvest inputs.')) {
+          disablePageIsolation();
+        }
+      });
+    }
+
+    updateShieldState(true, `🚨 AegisHer — BOT ISOLATED (${trapType})`);
+    showToastAlert(`🚨 Honeypot Triggered: ${trapType} (Threat Score: 95)`);
+  }
+
+  function disablePageIsolation() {
+    isPageIsolated = false;
+    document.body.classList.remove('aegis-isolated-halo');
+    const banner = document.getElementById('aegis-isolation-banner');
+    if (banner) banner.remove();
+    updateShieldState(false);
+  }
+
+  // Form submission interception during active page isolation
+  document.addEventListener('submit', (e) => {
+    if (isPageIsolated) {
+      e.preventDefault();
+      e.stopPropagation();
+      showToastAlert('⚠️ AegisHer: Form submission blocked. Page is in isolation mode.');
+      console.warn('[AegisHer] Form submission blocked during page isolation.');
+    }
+  }, true);
 
   // Expose test helper on window for manual testing if needed
   window.__AegisHerTestScan = scanPageTextThreats;

@@ -42,7 +42,17 @@ TRAINING_DATA = [
     ("Your bank account is suspended, share your OTP immediately to verify", "PHISHING_COERCION"),
     ("Send me your verification code right now to unlock your account", "PHISHING_COERCION"),
     ("Urgent: Confirm your netbanking credentials or card will be blocked", "PHISHING_COERCION"),
-    ("Claim your 1000 prize by logging in with your password here", "PHISHING_COERCION")
+    ("Claim your 1000 prize by logging in with your password here", "PHISHING_COERCION"),
+
+    # Category 5: AUTOMATED BOT / HONEYPOT DETECTION
+    ("unauthorized automated interaction detected on decoy inputs", "AUTOMATED_BOT"),
+    ("decoy credential parameter accessed by automated crawler script", "AUTOMATED_BOT"),
+    ("bot trying to submit hidden decoy form fields", "AUTOMATED_BOT"),
+    ("malicious scraper harvesting web form values", "AUTOMATED_BOT"),
+    ("stealth scraper traversing hidden decoy links", "AUTOMATED_BOT"),
+    ("automated tool reading secret window config attributes", "AUTOMATED_BOT"),
+    ("crawler hovering hidden link decoy trap", "AUTOMATED_BOT"),
+    ("decoy key token altered by scraper", "AUTOMATED_BOT")
 ]
 
 # 2. TOKENIZATION & NAIVE BAYES TRAINING
@@ -74,7 +84,8 @@ def train_and_export():
             "PHISHING_COERCION": 80,
             "GENDER_HARASSMENT": 88,
             "CYBERSTALKING_VIOLENCE": 92,
-            "SEXTORTION_BLACKMAIL": 96
+            "SEXTORTION_BLACKMAIL": 96,
+            "AUTOMATED_BOT": 95
         }
     }
 

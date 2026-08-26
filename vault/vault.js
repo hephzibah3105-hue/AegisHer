@@ -42,14 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'incident-card';
 
       const formattedDate = new Date(item.timestamp).toLocaleString();
+      const isHoneypot = !!item.isHoneypot;
+      const badgeType = escapeHtml(item.threatType || 'HIGH_RISK_THREAT');
+      const matchesLabel = isHoneypot ? 'Triggered Trap Type' : 'Matched Threat Terms';
       const matchesStr = (item.matches && item.matches.length > 0)
         ? item.matches.join(', ')
-        : 'Multiple extortion/stalking patterns detected';
+        : (isHoneypot ? 'Stealth honeypot interaction' : 'Multiple extortion/stalking patterns detected');
 
       card.innerHTML = `
         <div class="incident-meta">
           <div class="meta-left">
-            <span class="badge-type">${escapeHtml(item.threatType || 'HIGH_RISK_THREAT')}</span>
+            <span class="badge-type" style="${isHoneypot ? 'background: rgba(239, 68, 68, 0.25); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);' : ''}">${badgeType}</span>
             <span class="score-tag">Threat Score: ${item.threatScore} / 100</span>
           </div>
           <div class="timestamp">📅 ${formattedDate} (ID: ${escapeHtml(item.id || 'N/A')})</div>
@@ -58,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">${escapeHtml(item.title || 'Target Web Page')}</div>
         <div class="incident-url">🔗 ${escapeHtml(item.url || 'Unknown URL')}</div>
 
-        <div class="snippet-box">
-          <strong>Extracted Text Evidence Snippet:</strong><br/>
+        <div class="snippet-box" style="${isHoneypot ? 'border-left-color: #ef4444;' : ''}">
+          <strong>${isHoneypot ? 'Honeypot Trap Evidence Log:' : 'Extracted Evidence Text Evidence Snippet:'}</strong><br/>
           <em>"${escapeHtml(item.snippet || 'Extortion text pattern detected on page.')}"</em>
           <div style="margin-top: 6px; font-size: 11px; color: #f87171;">
-            Matched Threat Terms: <strong>[${escapeHtml(matchesStr)}]</strong>
+            ${matchesLabel}: <strong>[${escapeHtml(matchesStr)}]</strong>
           </div>
         </div>
 
@@ -309,6 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 4. Seed Demo Incident ---
   function seedDemoIncident() {
+    // 1. Text Blackmail Demo Screenshot
     const canvas = document.createElement('canvas');
     canvas.width = 600;
     canvas.height = 300;
@@ -339,9 +343,42 @@ document.addEventListener('DOMContentLoaded', () => {
       screenshot: demoScreenshot
     };
 
+    // 2. Honeypot Automated Scraper Demo Screenshot
+    const canvas2 = document.createElement('canvas');
+    canvas2.width = 600;
+    canvas2.height = 300;
+    const ctx2 = canvas2.getContext('2d');
+    ctx2.fillStyle = '#0f172a';
+    ctx2.fillRect(0, 0, 600, 300);
+    ctx2.fillStyle = '#ef4444';
+    ctx2.font = 'bold 20px sans-serif';
+    ctx2.fillText('🚨 AEGISHER HONEYPOT AI ISOLATION DETECTED', 40, 60);
+    ctx2.fillStyle = '#cbd5e1';
+    ctx2.font = '14px sans-serif';
+    ctx2.fillText('Url: https://bait-target-portal.local/checkout', 40, 100);
+    ctx2.fillText('Trap Type: API_HOOK_ACCESS (Decoy key property read)', 40, 140);
+    ctx2.fillStyle = '#38bdf8';
+    ctx2.fillText('Active Page Isolation Shield Enabled 🛡️', 40, 220);
+
+    const hpScreenshot = canvas2.toDataURL('image/png');
+
+    const hpItem = {
+      id: 'ev_demo_hp_' + Date.now().toString().substring(8),
+      timestamp: new Date(Date.now() - 30000).toISOString(),
+      url: 'https://bait-target-portal.local/checkout',
+      title: 'Decoy Checkout Portal - Protected Area',
+      threatScore: 95,
+      threatType: 'AUTOMATED_BOT',
+      matches: ['API_HOOK_ACCESS'],
+      snippet: 'Automated script attempted to access window._aegisDecoyCredentials configuration parameters.',
+      screenshot: hpScreenshot,
+      isHoneypot: true
+    };
+
     chrome.storage.local.get(['aegis_evidence_vault'], (res) => {
       const vault = res.aegis_evidence_vault || [];
       vault.unshift(demoItem);
+      vault.unshift(hpItem);
       chrome.storage.local.set({ aegis_evidence_vault: vault }, () => {
         loadVaultData();
       });

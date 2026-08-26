@@ -11,7 +11,8 @@
   ],
   "host_permissions": [
     "<all_urls>",
-    "https://api.pwnedpasswords.com/*"
+    "https://api.pwnedpasswords.com/*",
+    "http://localhost:5000/*"
   ],
   "action": {
     "default_popup": "popup/popup.html"
@@ -37,6 +38,16 @@
         "content.css"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "inject.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "web_accessible_resources": [

@@ -573,6 +573,45 @@
           </div>
         </div>
       </div>
+
+      <!-- Section 2.5: Honeypot AI & Anti-Scraper Telemetry -->
+      <div class="card" style="grid-column: span 2; margin-top: 12px;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🕸️ Honeypot AI & Anti-Scraper Telemetry</div>
+            <div class="card-subtitle">Real-time status of active bait traps, scraper detection statistics, and machine learning incident logs</div>
+          </div>
+          <button class="btn btn-cyan" id="simulate-honeypot-btn" style="font-size: 11px; padding: 6px 14px;">Simulate Honeypot Trigger</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+          <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Decoy Input Status</div>
+            <div style="font-size: 14px; font-weight: 700; color: #10b981; margin-top: 8px;" id="status-decoy-input">🟢 ACTIVE / SECURE</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">API Hook Status</div>
+            <div style="font-size: 14px; font-weight: 700; color: #10b981; margin-top: 8px;" id="status-api-hook">🟢 ACTIVE / SECURE</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Decoy Link Status</div>
+            <div style="font-size: 14px; font-weight: 700; color: #10b981; margin-top: 8px;" id="status-decoy-link">🟢 ACTIVE / SECURE</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Scrapers Baited</div>
+            <div style="font-size: 22px; font-weight: 800; color: #f43f5e; margin-top: 4px;" id="stats-total-baited">0</div>
+          </div>
+        </div>
+
+        <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px;">
+          <h4 style="font-size: 13px; font-weight: 700; color: #f8fafc; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span>📋</span> Real-Time Honeypot AI Trigger Stream
+          </h4>
+          <div id="honeypot-log-container" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+            <div style="color: var(--text-muted); font-size: 12px; font-style: italic; text-align: center; padding: 20px 0;">No scraper or automated interactions logged on decoy bait traps.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Section 3: Global & Regional Cyber Threat Trend Intelligence -->
