@@ -33,7 +33,7 @@ Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and c
 | :--- | :--- |
 | **Extension Framework** | Chrome Extensions Manifest V3 (MV3) |
 | **Frontend & UI** | Vanilla JavaScript (ES6+), HTML5, CSS3 Glassmorphism UI |
-| **AI / NLP Engine** | Custom Log-Likelihood Naive Bayes Classifier (`train_model.py` $\rightarrow$ `threat_model.json`) |
+| **AI / NLP Engine** | Custom Log-Likelihood Naive Bayes Classifier (`train_model.py` → `threat_model.json`) |
 | **Background Services** | MV3 Service Workers (`background.js`), Chrome Storage API, Tabs API |
 | **Security & Privacy** | Zero Cloud Exfiltration, 100% Client-Side Local Execution |
 
@@ -41,34 +41,41 @@ Digital abuse, non-consensual image blackmail (sextortion), cyberstalking, and c
 
 ## 🚀 Installation & Setup Guide
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
 ```bash
-git clone [https://github.com/hephzibah3105-hue/AegisHer.git](https://github.com/hephzibah3105-hue/AegisHer.git)
+git clone https://github.com/hephzibah3105-hue/AegisHer.git
 cd AegisHer
-2. (Optional) Train or Update the AI Model
+```
+
+### Step 2: (Optional) Train or Update the AI Model
 To train the model on updated datasets or custom threat categories:
 
-Bash
+``` Bash
 python train_model.py
+```
+
 This compiles and generates the updated threat_model.json artifact directly inside the extension root.
 
-3. Load the Extension into Google Chrome
+### Step 3: Load the Extension into Google Chrome
+
 Open Google Chrome and navigate to chrome://extensions/.
 
-Enable Developer mode using the toggle in the top-right corner.
+Enable Developer mode using the toggle switch in the top-right corner.
 
 Click the Load unpacked button in the top-left corner.
 
-Select the root AegisHer folder.
+Select the root AegisHer project folder.
 
-The AegisHer — AI Cybersecurity Guardian card will appear with its icon enabled in your toolbar.
+The AegisHer — AI Cybersecurity Guardian extension will appear with its shield active in your toolbar.
 
-🧪 Testing the Extension (test.html)
+### 🧪 Testing the Extension (test.html)
+
 To test every defensive feature in a safe environment, create a file named test.html on your desktop, paste the code below, and open it in Google Chrome.
 
+
 test.html Sandbox Code
-HTML
-<!DOCTYPE html>
+
+``` HTML
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -91,8 +98,8 @@ HTML
   <div class="card">
     <h3>Test 1: Suspicious & High-Risk URL Intervention</h3>
     <p>Hover over or click the link below to verify real-time URL heuristic analysis and pre-navigation intervention:</p>
-    <a href="[http://192.168.1.1/login-verify-account-update.xyz](http://192.168.1.1/login-verify-account-update.xyz)" class="danger-link">
-      [http://192.168.1.1/login-verify-account-update.xyz](http://192.168.1.1/login-verify-account-update.xyz) (Simulated Malicious Gateway)
+    <a href="http://192.168.1.1/login-verify-account-update.xyz" class="danger-link">
+      http://192.168.1.1/login-verify-account-update.xyz (Simulated Malicious Gateway)
     </a>
   </div>
 
@@ -125,19 +132,24 @@ HTML
 
 </body>
 </html>
-🔍 Verification Steps
+```
+
+### 🔍 Verification Steps
+
 URL Interception: Click the red link in test.html. AegisHer halts navigation and displays the Security Warning Modal with risk breakdown.
 
 Threat Detection & Toast: Refresh test.html. Within 1–2 seconds, the bottom-right corner displays the red threat detection toast followed by evidence vault confirmation.
 
 Evidence Vault: Open the AegisHer popup and click Open Evidence Vault to view captured incident records and download forensic summaries.
 
-🔒 Privacy & Safety Compliance
+### 🔒 Privacy & Safety Compliance
+
 No Remote Telemetry: All text evaluation is processed locally in the user's browser runtime.
 
 Tamper-Resistant Storage: Incident logs and visual captures remain exclusively on the user's local disk until exported.
 
 Ethical ML Design: Classifiers are trained specifically on defense and early threat detection.
 
-📜 License
+### 📜 License
+
 Distributed under the MIT License. See LICENSE for more details.
