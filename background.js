@@ -84,6 +84,14 @@ function calculateUrlRiskScore(urlString) {
 
 // Listen for messages from content scripts or popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'UPDATE_LIVE_PAGE_STATS') {
+    const tabId = sender.tab ? sender.tab.id : 'global';
+    chrome.storage.local.set({
+      [`tab_stats_${tabId}`]: request.stats
+    });
+    return true;
+  }
+
   if (request.action === 'ANALYZE_LINK') {
     const analysis = calculateUrlRiskScore(request.url);
     sendResponse(analysis);

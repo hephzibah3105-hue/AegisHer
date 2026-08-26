@@ -1,5 +1,7 @@
 // AegisHer Content Script (Core Protection Suite)
 
+// AegisHer Content Script (Core Protection Suite)
+
 (function () {
   'use strict';
 
@@ -8,8 +10,81 @@
   // Cache for URL link evaluation results
   const linkRiskCache = new Map();
   let hasVaultedEvidence = false;
+  let currentDetectedThreatCount = 0;
 
-  // --- 1. Inject Floating Translucent Shield Indicator ---
+  // Listen for Live Tab Metric requests from the popup
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'GET_LIVE_TAB_STATS') {
+      const links = document.querySelectorAll('a[href]');
+      const validLinks = Array.from(links).filter(a => {
+        const href = a.getAttribute('href');
+        return href && !href.startsWith('#') && !href.startsWith('javascript:');
+      });
+
+      sendResponse({
+        linksScanned: validLinks.length,
+        risksBlocked: currentDetectedThreatCount
+      });
+      return true;
+    }
+  });
+
+  // --- Draggable Handler for Shield Widget ---
+  function enableWidgetDragging(widget) {
+    let isDragging = false;
+    let startX, startY;
+    let startLeft, startTop;
+
+    widget.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = widget.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+
+      widget.style.setProperty('right', 'auto', 'important');
+      widget.style.setProperty('bottom', 'auto', 'important');
+      widget.style.setProperty('left', `${startLeft}px`, 'important');
+      widget.style.setProperty('top', `${startTop}px`, 'important');
+      widget.style.setProperty('cursor', 'grabbing', 'important');
+
+      function onMouseMove(event) {
+        if (!isDragging) return;
+        event.preventDefault();
+
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+
+        let newLeft = startLeft + deltaX;
+        let newTop = startTop + deltaY;
+
+        const maxLeft = window.innerWidth - widget.offsetWidth - 12;
+        const maxTop = window.innerHeight - widget.offsetHeight - 12;
+
+        newLeft = Math.max(12, Math.min(newLeft, maxLeft));
+        newTop = Math.max(12, Math.min(newTop, maxTop));
+
+        widget.style.setProperty('left', `${newLeft}px`, 'important');
+        widget.style.setProperty('top', `${newTop}px`, 'important');
+      }
+
+      function onMouseUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        widget.style.setProperty('cursor', 'grab', 'important');
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      }
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  // --- 1. Floating Translucent Shield Indicator & Toggle Controller ---
   function injectShieldWidget() {
     if (document.getElementById('aegis-shield-widget')) return;
 
@@ -23,6 +98,14 @@
     `;
 
     document.body.appendChild(shield);
+    enableWidgetDragging(shield);
+  }
+
+  function removeShieldWidget() {
+    const existing = document.getElementById('aegis-shield-widget');
+    if (existing) {
+      existing.remove();
+    }
   }
 
   function updateShieldState(alertMode, message) {
@@ -33,12 +116,31 @@
 
     if (alertMode) {
       shield.classList.add('aegis-alert-state');
-      if (textSpan) textSpan.textContent = message || '🛡️ AegisHer — THREAT VAULTED';
+      if (textSpan) textSpan.textContent = message || '🚨 AegisHer — THREAT VAULTED';
     } else {
       shield.classList.remove('aegis-alert-state');
       if (textSpan) textSpan.textContent = '🛡️ AegisHer AI Shield — ON';
     }
   }
+
+  // Initial shield mount on load
+  chrome.storage.local.get(['aegis_shield_active'], (res) => {
+    const isActive = res.aegis_shield_active !== false;
+    if (isActive) {
+      injectShieldWidget();
+    }
+  });
+
+  // Real-time toggle listener from popup switch
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.aegis_shield_active !== undefined) {
+      if (changes.aegis_shield_active.newValue) {
+        injectShieldWidget();
+      } else {
+        removeShieldWidget();
+      }
+    }
+  });
 
   // --- 2. Link Hover & Click Listener (Heuristic Risk Interceptor) ---
   function getAnchorElement(target) {
@@ -60,15 +162,22 @@
     const url = anchor.href;
     if (url.startsWith('javascript:') || url.startsWith('#')) return;
 
-    if (!linkRiskCache.has(url)) {
+    const applyRiskStyle = (score) => {
+      if (score >= 60) {
+        anchor.style.outline = '2px dashed #ef4444';
+        anchor.title = `[AegisHer Risk Warning: ${score}/100] High Risk Link!`;
+      }
+    };
+
+    if (linkRiskCache.has(url)) {
+      const cached = linkRiskCache.get(url);
+      if (cached) applyRiskStyle(cached.score);
+    } else {
       chrome.runtime.sendMessage({ action: 'ANALYZE_LINK', url: url }, (response) => {
         if (chrome.runtime.lastError) return;
         if (response) {
           linkRiskCache.set(url, response);
-          if (response.score >= 60) {
-            anchor.style.outline = '2px dashed #ef4444';
-            anchor.title = `[AegisHer Risk Warning: ${response.score}/100] High Risk Link!`;
-          }
+          applyRiskStyle(response.score);
         }
       });
     }
@@ -305,8 +414,8 @@
 
     if (totalScore >= 75 && !hasVaultedEvidence) {
       hasVaultedEvidence = true;
-      console.warn(`[AegisHer Engine] High-risk threat detected (${totalScore}/100) in category: ${primaryCategory}`);
-
+      currentDetectedThreatCount = matchesFound.length || 1;
+      console.log(`[AegisHer Engine] High-risk threat detected (${totalScore}/100) in category: ${primaryCategory}`);
       if (typeof updateShieldState === 'function') {
         updateShieldState(true, `🚨 AegisHer — THREAT VAULTED (${totalScore}/100)`);
       }
@@ -372,3 +481,59 @@
 
 })();
 
+function enableWidgetDragging(widget) {
+  let isDragging = false;
+  let startX, startY;
+  let startLeft, startTop;
+
+  widget.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // Only trigger on left-click
+
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    const rect = widget.getBoundingClientRect();
+    startLeft = rect.left;
+    startTop = rect.top;
+
+    // Reset right/bottom styles with !important override to stop stretching
+    widget.style.setProperty('right', 'auto', 'important');
+    widget.style.setProperty('bottom', 'auto', 'important');
+    widget.style.setProperty('left', `${startLeft}px`, 'important');
+    widget.style.setProperty('top', `${startTop}px`, 'important');
+    widget.style.setProperty('cursor', 'grabbing', 'important');
+
+    function onMouseMove(event) {
+      if (!isDragging) return;
+      event.preventDefault();
+
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+
+      let newLeft = startLeft + deltaX;
+      let newTop = startTop + deltaY;
+
+      // Keep entirely within browser boundaries
+      const maxLeft = window.innerWidth - widget.offsetWidth - 12;
+      const maxTop = window.innerHeight - widget.offsetHeight - 12;
+
+      newLeft = Math.max(12, Math.min(newLeft, maxLeft));
+      newTop = Math.max(12, Math.min(newTop, maxTop));
+
+      widget.style.setProperty('left', `${newLeft}px`, 'important');
+      widget.style.setProperty('top', `${newTop}px`, 'important');
+    }
+
+    function onMouseUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      widget.style.setProperty('cursor', 'grab', 'important');
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
+}
