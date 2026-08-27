@@ -413,11 +413,12 @@ function analyzeUploadedMedia(file) {
       const avgChromatic = channelSpectralSkew / totalPixels;
       const noiseDensity = (highFreqResidualNoise / totalPixels) * 100;
 
-      const facialBoundaryScore = Math.min(98, Math.max(8, Math.round((avgLaplacian * 2.6) + (noiseDensity * 0.7))));
-      const lightingScore = Math.min(95, Math.max(6, Math.round(avgChromatic * 1.5)));
-      const ganScore = Math.min(97, Math.max(8, Math.round((noiseDensity * 2.1) + (avgChromatic * 0.8))));
+      // Calibrated sensitivity for smooth diffusion portraits and GAN chromatic variance
+      const facialBoundaryScore = Math.min(98, Math.max(15, Math.round((avgLaplacian * 3.4) + (noiseDensity * 1.2))));
+      const lightingScore = Math.min(96, Math.max(12, Math.round(avgChromatic * 2.2)));
+      const ganScore = Math.min(98, Math.max(15, Math.round((noiseDensity * 2.8) + (avgChromatic * 1.2))));
 
-      const compositeScore = Math.min(99, Math.round((facialBoundaryScore * 0.4) + (lightingScore * 0.3) + (ganScore * 0.3)));
+      const compositeScore = Math.min(99, Math.round((facialBoundaryScore * 0.25) + (lightingScore * 0.35) + (ganScore * 0.40)));
 
       console.log(`[AegisHer Forensic Engine] Analyzed ${file.name}:`, {
         compositeScore,

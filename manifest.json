@@ -5,6 +5,7 @@
   "description": "Proactive AI cybersecurity shield for women.",
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "activeTab",
     "tabs",
     "scripting"

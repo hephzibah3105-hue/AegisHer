@@ -1,7 +1,5 @@
 // AegisHer Content Script (Core Protection Suite)
 
-// AegisHer Content Script (Core Protection Suite)
-
 (function () {
   'use strict';
 
@@ -9,20 +7,73 @@
 
   // Cache for URL link evaluation results
   const linkRiskCache = new Map();
-  let hasVaultedEvidence = false;
+  let lastVaultTime = 0;
   let currentDetectedThreatCount = 0;
   let isPageIsolated = false;
+  let isShieldGloballyActive = true;
+
+  // Initialize from chrome.storage.local BEFORE injecting UI or running scanners
+  try {
+    if (chrome.runtime?.id) {
+      chrome.storage.local.get({ aegis_shield_active: true }, (res) => {
+        if (!chrome.runtime?.id) return;
+        isShieldGloballyActive = res.aegis_shield_active;
+        if (!isShieldGloballyActive) {
+          removeShieldWidgetAndAlerts();
+        } else {
+          init();
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[AegisHer] Extension context invalidated on load:', e);
+  }
+
+  // Listen for real-time TOGGLE_GLOBAL_SHIELD message from popup
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!chrome.runtime?.id) return;
+      if (message.action === 'TOGGLE_GLOBAL_SHIELD') {
+        isShieldGloballyActive = message.shieldActive;
+        if (!isShieldGloballyActive) {
+          removeShieldWidgetAndAlerts();
+        } else {
+          location.reload(); // Refresh to reactivate observers cleanly
+        }
+      }
+    });
+  }
+
+  function removeShieldWidgetAndAlerts() {
+    const widget = document.getElementById('aegis-shield-widget');
+    if (widget) widget.remove();
+    const toast = document.getElementById('aegis-toast-alert');
+    if (toast) toast.remove();
+    const modal = document.getElementById('aegis-risk-modal-overlay');
+    if (modal) modal.remove();
+    const banner = document.getElementById('aegis-isolation-banner');
+    if (banner) banner.remove();
+    if (document.body) document.body.classList.remove('aegis-isolated-halo');
+    const badges = document.querySelectorAll('[id*="aegis"], [class*="aegis-badge"], [class*="aegis-shield"]');
+    badges.forEach(b => b.remove());
+  }
 
   // Asynchronously load the Bayesian threat classifier model
   let localModel = null;
-  const modelUrl = chrome.runtime.getURL('threat_model.json');
-  fetch(modelUrl)
-    .then(r => r.json())
-    .then(data => {
-      localModel = data;
-      console.log('[AegisHer] Bayesian Threat Model loaded successfully.');
-    })
-    .catch(err => console.error('[AegisHer] Failed to load threat model:', err));
+  try {
+    if (chrome.runtime?.id) {
+      const modelUrl = chrome.runtime.getURL('threat_model.json');
+      fetch(modelUrl)
+        .then(r => r.json())
+        .then(data => {
+          localModel = data;
+          console.log('[AegisHer] Bayesian Threat Model loaded successfully.');
+        })
+        .catch(err => console.error('[AegisHer] Failed to load threat model:', err));
+    }
+  } catch (e) {
+    console.warn('[AegisHer] Extension context invalidated during model fetch:', e);
+  }
 
   // Helper to tokenize text matching train_model.py tokenization
   function tokenizeText(text) {
@@ -58,22 +109,25 @@
   }
 
   // Listen for Live Tab Metric requests from the popup
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'GET_LIVE_TAB_STATS') {
-      const links = document.querySelectorAll('a[href]');
-      const validLinks = Array.from(links).filter(a => {
-        const href = a.getAttribute('href');
-        return href && !href.startsWith('#') && !href.startsWith('javascript:');
-      });
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (!chrome.runtime?.id) return;
+      if (request.action === 'GET_LIVE_TAB_STATS') {
+        const links = document.querySelectorAll('a[href]');
+        const validLinks = Array.from(links).filter(a => {
+          const href = a.getAttribute('href');
+          return href && !href.startsWith('#') && !href.startsWith('javascript:');
+        });
 
-      sendResponse({
-        linksScanned: validLinks.length,
-        risksBlocked: currentDetectedThreatCount,
-        isIsolated: isPageIsolated
-      });
-      return true;
-    }
-  });
+        sendResponse({
+          linksScanned: validLinks.length,
+          risksBlocked: currentDetectedThreatCount,
+          isIsolated: isPageIsolated
+        });
+        return true;
+      }
+    });
+  }
 
   // --- Draggable Handler for Shield Widget ---
   function enableWidgetDragging(widget) {
@@ -132,6 +186,7 @@
 
   // --- 1. Floating Translucent Shield Indicator & Toggle Controller ---
   function injectShieldWidget() {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (document.getElementById('aegis-shield-widget')) return;
 
     const shield = document.createElement('div');
@@ -155,6 +210,7 @@
   }
 
   function updateShieldState(alertMode, message) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     const shield = document.getElementById('aegis-shield-widget');
     if (!shield) return;
 
@@ -168,25 +224,6 @@
       if (textSpan) textSpan.textContent = '🛡️ AegisHer AI Shield — ON';
     }
   }
-
-  // Initial shield mount on load
-  chrome.storage.local.get(['aegis_shield_active'], (res) => {
-    const isActive = res.aegis_shield_active !== false;
-    if (isActive) {
-      injectShieldWidget();
-    }
-  });
-
-  // Real-time toggle listener from popup switch
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.aegis_shield_active !== undefined) {
-      if (changes.aegis_shield_active.newValue) {
-        injectShieldWidget();
-      } else {
-        removeShieldWidget();
-      }
-    }
-  });
 
   // --- 2. Link Hover & Click Listener (Heuristic Risk Interceptor) ---
   function getAnchorElement(target) {
@@ -202,6 +239,7 @@
 
   // Hover listener for link pre-scoring
   document.addEventListener('mouseover', (e) => {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     const anchor = getAnchorElement(e.target);
     if (!anchor || !anchor.href) return;
 
@@ -219,25 +257,29 @@
       const cached = linkRiskCache.get(url);
       if (cached) applyRiskStyle(cached.score);
     } else {
-      chrome.runtime.sendMessage({ action: 'ANALYZE_LINK', url: url }, (response) => {
-        if (chrome.runtime.lastError) return;
-        if (response) {
-          linkRiskCache.set(url, response);
-          applyRiskStyle(response.score);
-        }
-      });
+      try {
+        chrome.runtime.sendMessage({ action: 'ANALYZE_LINK', url: url }, (response) => {
+          if (chrome.runtime.lastError) return;
+          if (response) {
+            linkRiskCache.set(url, response);
+            applyRiskStyle(response.score);
+          }
+        });
+      } catch (err) {
+        // Extension context invalidated
+      }
     }
   }, true);
 
   // Click listener for high-risk navigation interception
   document.addEventListener('click', (e) => {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     const anchor = getAnchorElement(e.target);
     if (!anchor || !anchor.href) return;
 
     const url = anchor.href;
     if (url.startsWith('javascript:') || url.startsWith('#')) return;
 
-    // Check if we already have risk evaluation
     const cachedRisk = linkRiskCache.get(url);
 
     if (cachedRisk && cachedRisk.score >= 60) {
@@ -247,19 +289,21 @@
       return;
     }
 
-    // If not cached yet, analyze synchronously via message
-    chrome.runtime.sendMessage({ action: 'ANALYZE_LINK', url: url }, (response) => {
-      if (chrome.runtime.lastError || !response) return;
-      linkRiskCache.set(url, response);
-      if (response.score >= 60) {
-        showRiskWarningModal(url, response.score, response.riskLevel, response.factors);
-      } else {
-        // Safe to proceed normally
-      }
-    });
+    try {
+      chrome.runtime.sendMessage({ action: 'ANALYZE_LINK', url: url }, (response) => {
+        if (chrome.runtime.lastError || !response) return;
+        linkRiskCache.set(url, response);
+        if (response.score >= 60) {
+          showRiskWarningModal(url, response.score, response.riskLevel, response.factors);
+        }
+      });
+    } catch (err) {
+      // Extension context invalidated
+    }
   }, true);
 
   function showRiskWarningModal(url, score, riskLevel, factors) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (document.getElementById('aegis-risk-modal-overlay')) return;
 
     const overlay = document.createElement('div');
@@ -429,10 +473,14 @@
     }
   ];
 
-  function scanPageTextThreats() {
-    if (hasVaultedEvidence) return;
+  function scanPageTextThreats(customText) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+    if (Date.now() - lastVaultTime < 4000) return;
 
-    const pageText = document.body ? document.body.innerText : '';
+    let pageText = document.body ? document.body.innerText : '';
+    if (customText && typeof customText === 'string') {
+      pageText = customText + '\n' + pageText;
+    }
     if (!pageText || pageText.trim().length < 8) return;
 
     let totalScore = 0;
@@ -447,7 +495,6 @@
         totalScore += pattern.weight;
         matchesFound.push(match[0]);
 
-        // Prioritize highest-severity threat category and its matching text context
         if (pattern.weight > maxWeight) {
           maxWeight = pattern.weight;
           primaryCategory = pattern.category;
@@ -467,7 +514,7 @@
       const tokens = tokenizeText(pageText);
       const prediction = predictNaiveBayes(tokens);
       if (prediction && prediction.bestClass !== 'SAFE') {
-        const mlWeight = localModel.threatWeights[prediction.bestClass] || 0;
+        const mlWeight = localModel.threatWeights ? (localModel.threatWeights[prediction.bestClass] || 0) : 0;
         if (mlWeight >= 75) {
           totalScore = mlWeight;
           primaryCategory = prediction.bestClass;
@@ -479,32 +526,37 @@
       }
     }
 
-    if (totalScore >= 75 && !hasVaultedEvidence) {
-      hasVaultedEvidence = true;
-      currentDetectedThreatCount = matchesFound.length || 1;
+    if (totalScore >= 75) {
+      lastVaultTime = Date.now();
+      currentDetectedThreatCount += matchesFound.length || 1;
 
       if (typeof updateShieldState === 'function') {
         updateShieldState(true, `🛡️ AegisHer — THREAT VAULTED (${totalScore}/100)`);
       }
 
-      chrome.runtime.sendMessage({
-        action: 'THREAT_DETECTED',
-        score: totalScore,
-        threatType: primaryCategory,
-        matches: matchesFound,
-        snippet: snippet || pageText.substring(0, 180),
-        url: window.location.href,
-        title: document.title || 'Security Incident'
-      }, () => {
-        if (chrome.runtime.lastError) return;
-        if (typeof showToastAlert === 'function') {
-          showToastAlert(`🚨 AegisHer Shield: ${primaryCategory.replace(/_/g, ' ')} (${totalScore}/100)`);
-        }
-      });
+      try {
+        chrome.runtime.sendMessage({
+          action: 'THREAT_DETECTED',
+          score: totalScore,
+          threatType: primaryCategory,
+          matches: matchesFound,
+          snippet: snippet || pageText.substring(0, 180),
+          url: window.location.href,
+          title: document.title || 'Security Incident'
+        }, () => {
+          if (chrome.runtime.lastError) return;
+          if (typeof showToastAlert === 'function') {
+            showToastAlert(`🚨 AegisHer Shield: ${primaryCategory.replace(/_/g, ' ')} (${totalScore}/100)`);
+          }
+        });
+      } catch (e) {
+        console.warn('[AegisHer] Extension context invalidated during threat message:', e);
+      }
     }
   }
 
   function showToastAlert(message) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (document.getElementById('aegis-toast-alert')) return;
 
     const toast = document.createElement('div');
@@ -524,28 +576,61 @@
   }
 
   // --- 4. Initialization & Event Observers ---
+  let isInitialized = false;
   function init() {
+    if (isInitialized) return;
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+    isInitialized = true;
+
     injectShieldWidget();
     scanPageTextThreats();
     injectHoneypotTraps();
 
-    // Observe DOM mutations to scan dynamic content (chat messages, comments, etc.)
-    const observer = new MutationObserver(() => scanPageTextThreats());
+    // 1. Observe DOM mutations for incoming chat messages (WhatsApp Web, Telegram, live chats)
+    const observer = new MutationObserver(() => {
+      if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+      scanPageTextThreats();
+    });
     if (document.body) {
       observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     }
+
+    // 2. Real-time typing scanner (WhatsApp Web, textareas, inputs, contenteditable)
+    let typingTimer = null;
+    document.addEventListener('input', (e) => {
+      if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+      const target = e.target;
+      if (!target) return;
+
+      const isInputOrTextarea = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      const isContentEditable = target.isContentEditable || target.getAttribute('contenteditable') === 'true';
+
+      if (isInputOrTextarea || isContentEditable) {
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+          if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+          const typedText = target.value || target.innerText || target.textContent || '';
+          if (typedText.trim().length >= 8) {
+            scanPageTextThreats(typedText);
+          }
+        }, 350); // Scans 350ms after user pauses typing
+      }
+    }, true);
+
+    window.addEventListener('load', () => setTimeout(scanPageTextThreats, 800));
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      if (chrome.runtime?.id && isShieldGloballyActive) init();
+    });
   } else {
-    init();
+    if (chrome.runtime?.id && isShieldGloballyActive) init();
   }
-
-  window.addEventListener('load', () => setTimeout(scanPageTextThreats, 800));
 
   // --- 5. Stealth Honeypot Traps & Active Page Isolation Engine ---
   function injectHoneypotTraps() {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (document.getElementById('aegis-decoy-input')) return;
 
     // A. Inject Decoy Form Input (invisible to users, bait for autofillers/scrapers)
@@ -573,9 +658,7 @@
     decoyInput.addEventListener('input', () => triggerDecoy('input'));
     document.body.appendChild(decoyInput);
 
-    // B. Hook window._aegisDecoyCredentials is now loaded via inject.js running in MAIN world context.
-
-    // C. Inject Decoy Link Trap
+    // B. Inject Decoy Link Trap
     const decoyLink = document.createElement('a');
     decoyLink.href = 'https://aegis-decoy-trap.local/admin-login-portal';
     decoyLink.id = 'aegis-decoy-link';
@@ -601,12 +684,14 @@
 
   // Handle messages from the page-context script (API hook)
   window.addEventListener('message', (e) => {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (e.data && e.data.source === 'aegis-honeypot' && e.data.type === 'API_HOOK_TRIGGER') {
       reportHoneypotTrigger('API_HOOK_ACCESS', e.data.detail);
     }
   });
 
   function reportHoneypotTrigger(trapType, detail) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (isPageIsolated) return;
 
     let prediction = 'AUTOMATED_BOT';
@@ -617,24 +702,29 @@
       const predictionRes = predictNaiveBayes(tokens);
       if (predictionRes && predictionRes.bestClass !== 'SAFE') {
         prediction = predictionRes.bestClass;
-        score = localModel.threatWeights[prediction] || 95;
+        score = localModel.threatWeights ? (localModel.threatWeights[prediction] || 95) : 95;
       }
     }
 
-    chrome.runtime.sendMessage({
-      action: 'HONEYPOT_TRIGGERED',
-      trapType: trapType,
-      detail: detail,
-      score: score,
-      threatType: prediction,
-      url: window.location.href,
-      title: document.title || 'Honeypot Trap Page'
-    });
+    try {
+      chrome.runtime.sendMessage({
+        action: 'HONEYPOT_TRIGGERED',
+        trapType: trapType,
+        detail: detail,
+        score: score,
+        threatType: prediction,
+        url: window.location.href,
+        title: document.title || 'Honeypot Trap Page'
+      });
+    } catch (e) {
+      console.warn('[AegisHer] Extension context invalidated on honeypot trigger:', e);
+    }
 
     enablePageIsolation(trapType, detail);
   }
 
   function enablePageIsolation(trapType, detail) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (isPageIsolated) return;
     isPageIsolated = true;
 
@@ -647,12 +737,12 @@
       banner = document.createElement('div');
       banner.id = 'aegis-isolation-banner';
       banner.innerHTML = `
-        <div class="banner-message">
-          <span>🚨</span>
-          <strong>AegisHer Active Isolation:</strong> Bot/scraper threat detected (${trapType}). Page isolated to block credentials leakage.
-        </div>
-        <button class="dismiss-btn" id="aegis-dismiss-isolation">Dismiss Shield</button>
-      `;
+      <div class="banner-message">
+        <span>🚨</span>
+        <strong>AegisHer Active Isolation:</strong> Bot/scraper threat detected (${trapType}). Page isolated to block credentials leakage.
+      </div>
+      <button class="dismiss-btn" id="aegis-dismiss-isolation">Dismiss Shield</button>
+    `;
       document.body.appendChild(banner);
 
       document.getElementById('aegis-dismiss-isolation').addEventListener('click', () => {
@@ -668,7 +758,7 @@
 
   function disablePageIsolation() {
     isPageIsolated = false;
-    document.body.classList.remove('aegis-isolated-halo');
+    if (document.body) document.body.classList.remove('aegis-isolated-halo');
     const banner = document.getElementById('aegis-isolation-banner');
     if (banner) banner.remove();
     updateShieldState(false);
@@ -676,6 +766,7 @@
 
   // Form submission interception during active page isolation
   document.addEventListener('submit', (e) => {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
     if (isPageIsolated) {
       e.preventDefault();
       e.stopPropagation();
@@ -686,60 +777,5 @@
 
   // Expose test helper on window for manual testing if needed
   window.__AegisHerTestScan = scanPageTextThreats;
-  function enableWidgetDragging(widget) {
-    let isDragging = false;
-    let startX, startY;
-    let startLeft, startTop;
 
-    widget.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return; // Only trigger on left-click
-
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-
-      const rect = widget.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-
-      // Reset right/bottom styles with !important override to stop stretching
-      widget.style.setProperty('right', 'auto', 'important');
-      widget.style.setProperty('bottom', 'auto', 'important');
-      widget.style.setProperty('left', `${startLeft}px`, 'important');
-      widget.style.setProperty('top', `${startTop}px`, 'important');
-      widget.style.setProperty('cursor', 'grabbing', 'important');
-
-      function onMouseMove(event) {
-        if (!isDragging) return;
-        event.preventDefault();
-
-        const deltaX = event.clientX - startX;
-        const deltaY = event.clientY - startY;
-
-        let newLeft = startLeft + deltaX;
-        let newTop = startTop + deltaY;
-
-        // Keep entirely within browser boundaries
-        const maxLeft = window.innerWidth - widget.offsetWidth - 12;
-        const maxTop = window.innerHeight - widget.offsetHeight - 12;
-
-        newLeft = Math.max(12, Math.min(newLeft, maxLeft));
-        newTop = Math.max(12, Math.min(newTop, maxTop));
-
-        widget.style.setProperty('left', `${newLeft}px`, 'important');
-        widget.style.setProperty('top', `${newTop}px`, 'important');
-      }
-
-      function onMouseUp() {
-        if (!isDragging) return;
-        isDragging = false;
-        widget.style.setProperty('cursor', 'grab', 'important');
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      }
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-  }
 })();

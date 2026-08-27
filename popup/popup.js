@@ -8,8 +8,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openVaultBtn = document.getElementById('open-vault-btn');
   const openDashboardBtn = document.getElementById('open-dashboard-btn');
 
+  const manualCaptureBtn = document.getElementById('manual-capture-btn');
+
   // 1. Load toggle state, total vaulted evidence count, risks blocked, and honeypot stats
-  chrome.storage.local.get(['aegis_shield_active', 'aegis_evidence_vault', 'aegis_honeypot_stats', 'risks_blocked'], (res) => {
+  chrome.storage.local.get({ aegis_shield_active: true, aegis_evidence_vault: [], aegis_honeypot_stats: { totalBaited: 0 }, risks_blocked: 0 }, (res) => {
     const isActive = res.aegis_shield_active !== false;
     if (shieldToggle) shieldToggle.checked = isActive;
     updateStatusText(isActive);
@@ -29,6 +31,53 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
+
+  // Manual Capture Button Handler
+  if (manualCaptureBtn) {
+    manualCaptureBtn.addEventListener('click', async () => {
+      const originalText = manualCaptureBtn.innerHTML;
+      manualCaptureBtn.disabled = true;
+      manualCaptureBtn.innerHTML = '<span>📸 Capturing...</span>';
+
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab) {
+          chrome.runtime.sendMessage({
+            action: 'MANUAL_VAULT_CAPTURE',
+            url: activeTab.url || '',
+            title: activeTab.title || 'Manual Evidence Capture'
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn('[AegisHer Popup] Manual capture error:', chrome.runtime.lastError);
+              manualCaptureBtn.innerHTML = '<span>⚠️ Capture Error</span>';
+              setTimeout(() => {
+                manualCaptureBtn.innerHTML = originalText;
+                manualCaptureBtn.disabled = false;
+              }, 2000);
+              return;
+            }
+
+            if (!response) {
+              manualCaptureBtn.innerHTML = '<span>⚠️ Capture Error</span>';
+            } else {
+              manualCaptureBtn.innerHTML = '<span>✅ Evidence Vaulted!</span>';
+            }
+            setTimeout(() => {
+              manualCaptureBtn.innerHTML = originalText;
+              manualCaptureBtn.disabled = false;
+            }, 2000);
+          });
+        } else {
+          manualCaptureBtn.innerHTML = originalText;
+          manualCaptureBtn.disabled = false;
+        }
+      } catch (err) {
+        console.error('Manual evidence capture failed:', err);
+        manualCaptureBtn.innerHTML = originalText;
+        manualCaptureBtn.disabled = false;
+      }
+    });
+  }
 
   // Clear banner and reset stats button listener
   const clearBannerBtn = document.getElementById('dismiss-badge-btn');
@@ -70,7 +119,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (activeTab && activeTab.id) {
       chrome.tabs.sendMessage(activeTab.id, { action: 'GET_LIVE_TAB_STATS' }, (response) => {
-        if (chrome.runtime.lastError || !response) {
+        if (chrome.runtime.lastError) {
+          if (statScanned) statScanned.textContent = '0';
+          if (statIntercepted) statIntercepted.textContent = '0';
+          return;
+        }
+        if (!response) {
           if (statScanned) statScanned.textContent = '0';
           if (statIntercepted) statIntercepted.textContent = '0';
           return;
@@ -78,7 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (statScanned) statScanned.textContent = response.linksScanned;
         if (statIntercepted) statIntercepted.textContent = response.risksBlocked;
-        
+
         const alertBanner = document.getElementById('honeypot-alert-banner');
         if (alertBanner && response.isIsolated) {
           alertBanner.style.display = 'flex';
@@ -89,12 +143,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Error loading tab metrics:', err);
   }
 
-  // Toggle switch handler
+  // Toggle switch handler (Global Broadcast across all tabs)
   if (shieldToggle) {
     shieldToggle.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       chrome.storage.local.set({ aegis_shield_active: isChecked }, () => {
-        updateStatusText(isChecked);
+        if (typeof updateStatusText === 'function') updateStatusText(isChecked);
+
+        // Notify every open tab in real time
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((tab) => {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, {
+                action: 'TOGGLE_GLOBAL_SHIELD',
+                shieldActive: isChecked
+              }, (response) => {
+                if (chrome.runtime.lastError) {
+                  // Ignore errors on restricted chrome:// pages
+                  return;
+                }
+              });
+            }
+          });
+        });
       });
     });
   }

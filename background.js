@@ -104,27 +104,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: request.url })
     })
-    .then(res => res.json())
-    .then(data => {
-      sendResponse({
-        score: data.score,
-        riskLevel: data.riskLevel || 'LOW',
-        factors: data.factors || []
+      .then(res => res.json())
+      .then(data => {
+        sendResponse({
+          score: data.score,
+          riskLevel: data.riskLevel || 'LOW',
+          factors: data.factors || []
+        });
+      })
+      .catch(err => {
+        console.warn('[AegisHer Background] Local backend offline, falling back to local heuristic calculation:', err);
+        const analysis = calculateUrlRiskScore(request.url);
+        sendResponse(analysis);
       });
-    })
-    .catch(err => {
-      console.warn('[AegisHer Background] Local backend offline, falling back to local heuristic calculation:', err);
-      const analysis = calculateUrlRiskScore(request.url);
-      sendResponse(analysis);
-    });
     return true;
   }
 
   if (request.action === 'THREAT_DETECTED') {
     const { score, threatType, matches, snippet, url, title } = request;
 
-    // Capture visible tab screenshot as evidence
-    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+    // Capture visible tab screenshot as compressed JPEG evidence
+    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
       const lastError = chrome.runtime.lastError;
       const screenshotData = lastError ? null : dataUrl;
 
@@ -140,12 +140,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         screenshot: screenshotData
       };
 
-      // Save into chrome.storage.local
-      chrome.storage.local.get(['aegis_evidence_vault', 'risks_blocked'], (res) => {
-        const currentVault = res.aegis_evidence_vault || [];
+      // Save into chrome.storage.local capped to 25 items
+      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], risks_blocked: 0 }, (res) => {
+        const currentVault = res.aegis_evidence_vault || res.aegis_vault || [];
         currentVault.unshift(evidenceRecord);
+        const cappedVault = currentVault.slice(0, 25);
         const risksBlocked = (res.risks_blocked || 0) + 1;
-        chrome.storage.local.set({ aegis_evidence_vault: currentVault, risks_blocked: risksBlocked }, () => {
+        chrome.storage.local.set({ aegis_evidence_vault: cappedVault, aegis_vault: cappedVault, risks_blocked: risksBlocked }, () => {
           console.log(`[AegisHer] Evidence vaulted successfully for threat score ${score}. ID: ${evidenceRecord.id}`);
 
           // Forward telemetry to local Python server
@@ -178,8 +179,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'GET_EVIDENCE_VAULT') {
-    chrome.storage.local.get(['aegis_evidence_vault'], (res) => {
-      sendResponse({ vault: res.aegis_evidence_vault || [] });
+    chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [] }, (res) => {
+      sendResponse({ vault: res.aegis_evidence_vault || res.aegis_vault || [] });
     });
     return true;
   }
@@ -192,7 +193,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
 
     // Capture visible tab evidence screenshot
-    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
       const lastError = chrome.runtime.lastError;
       const screenshotData = lastError ? null : dataUrl;
 
@@ -210,13 +211,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         isHoneypot: true
       };
 
-      // Save to evidence vault, logs, and statistics
-      chrome.storage.local.get(['aegis_evidence_vault', 'aegis_honeypot_logs', 'aegis_honeypot_stats', 'risks_blocked'], (res) => {
-        const vault = res.aegis_evidence_vault || [];
+      // Save to evidence vault, logs, and statistics capped to 25 items
+      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], aegis_honeypot_logs: [], aegis_honeypot_stats: { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 }, risks_blocked: 0 }, (res) => {
+        const vault = res.aegis_evidence_vault || res.aegis_vault || [];
         vault.unshift(honeypotRecord);
+        const cappedVault = vault.slice(0, 25);
 
         const hpLogs = res.aegis_honeypot_logs || [];
         hpLogs.unshift(honeypotRecord);
+        const cappedHpLogs = hpLogs.slice(0, 25);
 
         const hpStats = res.aegis_honeypot_stats || { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 };
         hpStats.totalBaited += 1;
@@ -227,8 +230,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const risksBlocked = (res.risks_blocked || 0) + 1;
 
         chrome.storage.local.set({
-          aegis_evidence_vault: vault,
-          aegis_honeypot_logs: hpLogs,
+          aegis_evidence_vault: cappedVault,
+          aegis_vault: cappedVault,
+          aegis_honeypot_logs: cappedHpLogs,
           aegis_honeypot_stats: hpStats,
           risks_blocked: risksBlocked
         }, () => {
@@ -259,6 +263,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       });
     });
+    return true; // Keep channel open for async response
+  }
+
+  if (request.action === 'MANUAL_VAULT_CAPTURE') {
+    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
+      const lastError = chrome.runtime.lastError;
+      const screenshotData = lastError ? null : dataUrl;
+
+      const evidenceRecord = {
+        id: 'ev_manual_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        timestamp: new Date().toISOString(),
+        url: request.url || (sender.tab ? sender.tab.url : 'Active Tab'),
+        title: request.title || (sender.tab ? sender.tab.title : 'Manual Evidence Capture'),
+        threatScore: 100,
+        threatType: 'USER_REPORTED_INCIDENT',
+        threatCategory: 'MANUAL_EVIDENCE',
+        matches: ['MANUAL_USER_CAPTURE'],
+        snippet: 'User manually captured screen evidence via AegisHer extension popup.',
+        screenshot: screenshotData
+      };
+
+      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], risks_blocked: 0 }, (res) => {
+        const currentVault = res.aegis_evidence_vault || res.aegis_vault || [];
+        currentVault.unshift(evidenceRecord);
+        const cappedVault = currentVault.slice(0, 25);
+        const risksBlocked = (res.risks_blocked || 0) + 1;
+
+        chrome.storage.local.set({
+          aegis_evidence_vault: cappedVault,
+          aegis_vault: cappedVault,
+          risks_blocked: risksBlocked
+        }, () => {
+          console.log(`[AegisHer] Manual evidence vaulted successfully. ID: ${evidenceRecord.id}`);
+
+          // Forward telemetry to local Python server
+          fetch('http://localhost:5000/api/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              timestamp: evidenceRecord.timestamp,
+              event: 'MANUAL_VAULT_CAPTURE',
+              threatType: evidenceRecord.threatType,
+              score: evidenceRecord.threatScore,
+              trapType: 'MANUAL_EVIDENCE',
+              url: evidenceRecord.url,
+              details: evidenceRecord.snippet
+            })
+          }).catch(err => console.warn('[AegisHer Background] Local telemetry server offline.'));
+
+          // Broadcast alert to active extension pages
+          chrome.runtime.sendMessage({
+            action: 'REALTIME_ALERT',
+            threat: evidenceRecord
+          }).catch(e => { /* ignore error when views closed */ });
+
+          sendResponse({ success: true, evidenceId: evidenceRecord.id });
+        });
+      });
+    });
+
     return true; // Keep channel open for async response
   }
 });
