@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, accuracy_score
 print("Loading AegisHer dataset...")
 
 # Load dataset
-df = pd.read_csv("dataset/aegisher_dataset.csv")
+df = pd.read_csv("../aegisher_7class_dataset.csv")
 
 print("Total samples:", len(df))
 
