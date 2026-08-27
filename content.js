@@ -7,10 +7,42 @@
 
   // Cache for URL link evaluation results
   const linkRiskCache = new Map();
+  const scannedUrls = new Set();
   let lastVaultTime = 0;
   let currentDetectedThreatCount = 0;
   let isPageIsolated = false;
   let isShieldGloballyActive = true;
+  let hasVaultedThisSession = false;
+
+  const WHITELISTED_DOMAINS = [
+    'google.com',
+    'claude.ai',
+    'github.com',
+    'chatgpt.com',
+    'dcode.fr',
+    'base64decode.org'
+  ];
+
+  const IGNORED_UI_WORDS = new Set(['code', 'upload', 'decode', 'chat', 'project', 'help', 'cipher', 'decoder']);
+
+  function isCurrentSiteWhitelisted() {
+    try {
+      const hostname = window.location.hostname.toLowerCase();
+      return WHITELISTED_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function scanLinksOnPage() {
+    const links = document.querySelectorAll('a[href]');
+    links.forEach(link => {
+      if (link.href && !link.href.startsWith('javascript:')) {
+        scannedUrls.add(link.href);
+      }
+    });
+    return scannedUrls.size;
+  }
 
   // Initialize from chrome.storage.local BEFORE injecting UI or running scanners
   try {
@@ -29,7 +61,7 @@
     console.warn('[AegisHer] Extension context invalidated on load:', e);
   }
 
-  // Listen for real-time TOGGLE_GLOBAL_SHIELD message from popup
+  // Listen for real-time messages from extension popup or background worker
   if (chrome.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!chrome.runtime?.id) return;
@@ -40,6 +72,8 @@
         } else {
           location.reload(); // Refresh to reactivate observers cleanly
         }
+      } else if (message.action === 'SHOW_HONEYPOT_BETA_BANNER') {
+        showHoneypotBetaBanner();
       }
     });
   }
@@ -51,9 +85,8 @@
     if (toast) toast.remove();
     const modal = document.getElementById('aegis-risk-modal-overlay');
     if (modal) modal.remove();
-    const banner = document.getElementById('aegis-isolation-banner');
-    if (banner) banner.remove();
-    if (document.body) document.body.classList.remove('aegis-isolated-halo');
+    const hpToast = document.getElementById('aegis-honeypot-beta-toast');
+    if (hpToast) hpToast.remove();
     const badges = document.querySelectorAll('[id*="aegis"], [class*="aegis-badge"], [class*="aegis-shield"]');
     badges.forEach(b => b.remove());
   }
@@ -81,13 +114,16 @@
     return text.toLowerCase().match(/\b\w+\b/g) || [];
   }
 
-  // Naive Bayes prediction logic matching python classification
+  // Naive Bayes prediction logic with confidence margin check
   function predictNaiveBayes(tokens) {
     if (!localModel || !localModel.classes || !localModel.priors || !localModel.likelihoods) {
       return null;
     }
+    if (!tokens || tokens.length === 0) {
+      return { bestClass: 'SAFE', maxScore: 0, scoresByClass: {}, threatMargin: 0 };
+    }
 
-    let bestClass = null;
+    let bestClass = 'SAFE';
     let maxScore = -Infinity;
     const scoresByClass = {};
 
@@ -105,7 +141,15 @@
       }
     });
 
-    return { bestClass, maxScore, scoresByClass };
+    const safeScore = scoresByClass['SAFE'] !== undefined ? scoresByClass['SAFE'] : -Infinity;
+    const threatMargin = maxScore - safeScore;
+
+    // Require positive log-likelihood margin over SAFE to classify as threat
+    if (bestClass !== 'SAFE' && threatMargin < 0.5) {
+      bestClass = 'SAFE';
+    }
+
+    return { bestClass, maxScore, scoresByClass, threatMargin };
   }
 
   // Listen for Live Tab Metric requests from the popup
@@ -113,16 +157,8 @@
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (!chrome.runtime?.id) return;
       if (request.action === 'GET_LIVE_TAB_STATS') {
-        const links = document.querySelectorAll('a[href]');
-        const validLinks = Array.from(links).filter(a => {
-          const href = a.getAttribute('href');
-          return href && !href.startsWith('#') && !href.startsWith('javascript:');
-        });
-
         sendResponse({
-          linksScanned: validLinks.length,
-          risksBlocked: currentDetectedThreatCount,
-          isIsolated: isPageIsolated
+          linksScanned: scanLinksOnPage()
         });
         return true;
       }
@@ -218,7 +254,7 @@
 
     if (alertMode) {
       shield.classList.add('aegis-alert-state');
-      if (textSpan) textSpan.textContent = message || '🚨 AegisHer — THREAT VAULTED';
+      if (textSpan) textSpan.textContent = message || '🚨 AegisHer — THREAT DETECTED';
     } else {
       shield.classList.remove('aegis-alert-state');
       if (textSpan) textSpan.textContent = '🛡️ AegisHer AI Shield — ON';
@@ -285,6 +321,9 @@
     if (cachedRisk && cachedRisk.score >= 60) {
       e.preventDefault();
       e.stopPropagation();
+      if (cachedRisk.score >= 80) {
+        currentDetectedThreatCount += 1;
+      }
       showRiskWarningModal(url, cachedRisk.score, cachedRisk.riskLevel, cachedRisk.factors);
       return;
     }
@@ -294,6 +333,9 @@
         if (chrome.runtime.lastError || !response) return;
         linkRiskCache.set(url, response);
         if (response.score >= 60) {
+          if (response.score >= 80) {
+            currentDetectedThreatCount += 1;
+          }
           showRiskWarningModal(url, response.score, response.riskLevel, response.factors);
         }
       });
@@ -353,185 +395,187 @@
     });
   }
 
-  // --- 3. Production-Grade Threat Detector (Sextortion, Violent Threats, Cyberstalking, Doxxing, Phishing) ---
+  // --- 3. Contextual Threat Patterns (Require Full Phrase Meaning with strict word boundaries) ---
   const THREAT_PATTERNS = [
-    // 1. SEXTORTION & NCII BLACKMAIL (Immediate High Risk)
     {
       category: 'SEXTORTION_BLACKMAIL',
-      weight: 85,
-      regex: /(send|give|upload)\s+(me\s+)?(your\s+)?(nudes|nude|private\s+photos|explicit\s+pictures|intimate\s+videos|nsfw|naked\s+pics)/i
+      weight: 95,
+      regex: /\b(send|give|upload)\b\s+.*\b(nudes|nude|private\s+photos|explicit\s+pictures|intimate\s+videos|naked\s+pics)\b.*\b(or|else|will|expose|leak|publish|share)\b/i
     },
     {
       category: 'SEXTORTION_BLACKMAIL',
-      weight: 85,
-      regex: /(leak|publish|upload|spread|share|post)\s+(your|these|the)?\s*(photos|videos|pictures|nudes|recordings|tape|webcam|private\s+content)\s+(online|everywhere|on\s+social|on\s+telegram|on\s+instagram|to\s+your\s+friends)/i
+      weight: 95,
+      regex: /\b(leak|publish|upload|spread|share|post)\b\s+.*\b(photos|videos|pictures|nudes|recordings|tape|webcam|private\s+content)\b\s+.*\b(or|unless|pay|money|bitcoin|btc)\b/i
     },
     {
       category: 'SEXTORTION_BLACKMAIL',
-      weight: 80,
-      regex: /pay\s+(me\s+)?(\$?\d+|money|cash|bitcoin|btc|crypto)\s+or\s+(i\s+will\s+)?(send|leak|expose|ruin|post)/i
+      weight: 95,
+      regex: /\b(recorded|captured|hacked|taped)\b\s+.*\b(webcam|screen|camera|private\s+moments)\b.*\b(send|pay|leak|expose)\b/i
     },
     {
-      category: 'SEXTORTION_BLACKMAIL',
-      weight: 75,
-      regex: /i\s+have\s+(recorded|captured|hacked|taped)\s+(your|you|you\s+through\s+your)\s*(webcam|screen|camera|phone|private\s+moments)/i
+      category: 'VIOLENT_THREAT',
+      weight: 95,
+      regex: /\bi\s+(will|am\s+going\s+to)\s+(kill|murder|hunt\s+down|shoot|stab|choke|beat\s+up|harm)\s+you\b/i
     },
-    {
-      category: 'SEXTORTION_BLACKMAIL',
-      weight: 75,
-      regex: /(expose|ruin)\s+you\s+to\s+(your\s+)?(family|friends|parents|relatives|contacts|followers|school|college|boss|workplace)/i
-    },
-
-    // 2. PHYSICAL THREATS & VIOLENT INTIMIDATION
     {
       category: 'VIOLENT_THREAT',
       weight: 90,
-      regex: /i\s+(will|am\s+going\s+to)\s+(kill|murder|hunt|shoot|stab|choke|beat|harm|destroy)\s+you/i
+      regex: /\byou\s+deserve\s+to\s+die\b|\bburn\s+in\s+hell\b|\bend\s+your\s+life\b/i
     },
     {
-      category: 'VIOLENT_THREAT',
+      category: 'CYBERSTALKING_DOXXING',
+      weight: 90,
+      regex: /\bi\s+know\s+where\s+you\s+(live|stay|sleep|work|study)\b|\bwatching\s+your\s+house\b|\bstalking\s+you\b/i
+    },
+    {
+      category: 'CYBERSTALKING_DOXXING',
+      weight: 90,
+      regex: /\b(tracking|monitoring)\s+your\s+(gps|real-time\s+location|ip|device|phone)\b|\bposting\s+your\s+(home\s+address|phone\s+number|ssn)\b/i
+    },
+    {
+      category: 'GENDER_BASED_HARASSMENT',
+      weight: 90,
+      regex: /\bworthless\s+because\s+you\s+are\s+a\s+woman\b|\b(slut|whore|bitch)\s+(deserves|needs\s+to\s+be|should\s+be)\b|\bwomen\s+should\s+know\s+their\s+place\b/i
+    },
+    {
+      category: 'COERCION_MANIPULATION',
       weight: 85,
-      regex: /(you\s+deserve\s+to\s+die|die\s+bitch|burn\s+in\s+hell|end\s+your\s+life)/i
-    },
-    {
-      category: 'VIOLENT_THREAT',
-      weight: 80,
-      regex: /i\s+will\s+(find|track|hunt)\s+you\s+down\s+and/i
-    },
-
-    // 3. CYBERSTALKING, DOXXING & SURVEILLANCE
-    {
-      category: 'CYBERSTALKING_DOXXING',
-      weight: 80,
-      regex: /i\s+know\s+where\s+you\s+(live|stay|sleep|work|study|hangout|commute)/i
-    },
-    {
-      category: 'CYBERSTALKING_DOXXING',
-      weight: 75,
-      regex: /(watching|stalking)\s+(you|your\s+every\s+move|your\s+house|your\s+window|outside\s+your)/i
-    },
-    {
-      category: 'CYBERSTALKING_DOXXING',
-      weight: 70,
-      regex: /(tracking|monitoring)\s+your\s+(gps|real-time\s+location|ip|device|phone\s+calls)/i
-    },
-    {
-      category: 'CYBERSTALKING_DOXXING',
-      weight: 75,
-      regex: /(i\s+have\s+your|posting\s+your)\s+(home\s+address|phone\s+number|id\s+card|real\s+identity|ssn|aadhaar|location)/i
-    },
-
-    // 4. GENDER-BASED HARASSMENT & TARGETED ABUSE
-    {
-      category: 'GENDER_BASED_HARASSMENT',
-      weight: 75,
-      regex: /(slut|whore|bitch|cunt)\s+(deserves|needs\s+to\s+be|should\s+be)/i
-    },
-    {
-      category: 'GENDER_BASED_HARASSMENT',
-      weight: 80,
-      regex: /i\s+will\s+(assault|rape|violate|force)\s+you/i
-    },
-    {
-      category: 'GENDER_BASED_HARASSMENT',
-      weight: 65,
-      regex: /you\s+are\s+(worthless|ugly|disgusting)\s+(kill\s+yourself|nobody\s+cares)/i
-    },
-
-    // 5. COERCION & PSYCHOLOGICAL MANIPULATION
-    {
-      category: 'COERCION_MANIPULATION',
-      weight: 70,
-      regex: /do\s+(what\s+i\s+say|as\s+you\s+are\s+told)\s+or\s+(else|face\s+the\s+consequences)/i
-    },
-    {
-      category: 'COERCION_MANIPULATION',
-      weight: 65,
-      regex: /(no\s+one\s+will\s+believe\s+you|if\s+you\s+tell\s+anyone\s+i\s+will)/i
-    },
-    {
-      category: 'COERCION_MANIPULATION',
-      weight: 65,
-      regex: /you\s+have\s+(\d+\s+hours|24h|until\s+tonight)\s+to\s+(respond|reply|comply|send)/i
-    },
-
-    // 6. PHISHING, CREDENTIAL HARVESTING & OTP FRAUD
-    {
-      category: 'PHISHING_FRAUD',
-      weight: 75,
-      regex: /(share|send|provide)\s+(your\s+)?(otp|verification\s+code|one-time\s+password|2fa\s+code)\s+(immediately|now|to\s+unlock)/i
+      regex: /\bdo\s+(what\s+i\s+say|as\s+you\s+are\s+told)\s+or\s+(else|face\s+the\s+consequences)\b|\bno\s+one\s+will\s+believe\s+you\b|\bif\s+you\s+tell\s+anyone\s+i\s+will\b/i
     },
     {
       category: 'PHISHING_FRAUD',
-      weight: 70,
-      regex: /account\s+(has\s+been\s+suspended|will\s+be\s+terminated|blocked)\s+(click\s+here|verify\s+now|confirm\s+identity)/i
-    },
-    {
-      category: 'PHISHING_FRAUD',
-      weight: 65,
-      regex: /(login|enter)\s+your\s+(netbanking|credit\s+card|password|pin|security\s+pin)\s+to\s+(claim|prevent\s+closure)/i
+      weight: 90,
+      regex: /\b(give|share|send|provide)\s+(your\s+)?(otp|verification\s+code|one-time\s+password|2fa\s+code)\s+(immediately|now|to\s+unlock)\b|\baccount\s+(has\s+been\s+suspended|will\s+be\s+terminated).*(click\s+here|verify\s+now)\b/i
     }
   ];
 
-  function scanPageTextThreats(customText) {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (Date.now() - lastVaultTime < 4000) return;
+  function isIgnoredUIContent(text) {
+    if (!text) return true;
+    const clean = text.trim().toLowerCase();
+    if (IGNORED_UI_WORDS.has(clean)) return true;
+    const words = clean.split(/\s+/);
+    if (words.length <= 3 && words.every(w => IGNORED_UI_WORDS.has(w))) return true;
+    return false;
+  }
 
-    let pageText = document.body ? document.body.innerText : '';
-    if (customText && typeof customText === 'string') {
-      pageText = customText + '\n' + pageText;
-    }
-    if (!pageText || pageText.trim().length < 8) return;
-
-    let totalScore = 0;
-    const matchesFound = [];
-    let primaryCategory = 'SECURITY_THREAT';
-    let maxWeight = 0;
-    let snippet = '';
-
-    for (const pattern of THREAT_PATTERNS) {
-      const match = pageText.match(pattern.regex);
-      if (match) {
-        totalScore += pattern.weight;
-        matchesFound.push(match[0]);
-
-        if (pattern.weight > maxWeight) {
-          maxWeight = pattern.weight;
-          primaryCategory = pattern.category;
-
-          const matchIndex = match.index || 0;
-          const start = Math.max(0, matchIndex - 50);
-          const end = Math.min(pageText.length, matchIndex + match[0].length + 50);
-          snippet = pageText.substring(start, end).replace(/\s+/g, ' ').trim();
-        }
+  // Extracts candidate user content blocks from the page instead of dumping whole body innerText
+  function getCandidateTextBlocks(customText) {
+    const blocks = [];
+    if (customText && typeof customText === 'string' && customText.trim().length >= 8) {
+      if (!isIgnoredUIContent(customText)) {
+        blocks.push(customText.trim());
       }
     }
 
-    totalScore = Math.min(100, totalScore);
+    if (!document.body) return blocks;
 
-    // Naive Bayes machine learning classification fallback
-    if (localModel && totalScore < 75) {
-      const tokens = tokenizeText(pageText);
-      const prediction = predictNaiveBayes(tokens);
-      if (prediction && prediction.bestClass !== 'SAFE') {
-        const mlWeight = localModel.threatWeights ? (localModel.threatWeights[prediction.bestClass] || 0) : 0;
-        if (mlWeight >= 75) {
-          totalScore = mlWeight;
-          primaryCategory = prediction.bestClass;
-          matchesFound.push(`ML Model Classified: ${prediction.bestClass}`);
-          if (!snippet) {
-            snippet = pageText.substring(0, 180).trim();
+    // Selector targeting user-visible content blocks (messages, posts, comments, text inputs, paragraphs)
+    const selectors = [
+      '[class*="message"]', '[class*="comment"]', '[class*="post"]', '[class*="chat"]',
+      'p', 'article', 'section', 'li', 'textarea', 'input[type="text"]', '[contenteditable="true"]'
+    ];
+
+    const elements = document.body.querySelectorAll(selectors.join(','));
+    const seen = new Set();
+
+    elements.forEach(el => {
+      // Ignore UI containers, headers, navs, footers, scripts, and Aegis extension widgets
+      if (el.closest('header, nav, footer, script, style, svg, button, [id*="aegis"]')) return;
+
+      const txt = (el.value || el.innerText || el.textContent || '').trim();
+      if (txt.length >= 8 && txt.length <= 1500 && !seen.has(txt) && !isIgnoredUIContent(txt)) {
+        seen.add(txt);
+        blocks.push(txt);
+      }
+    });
+
+    return blocks;
+  }
+
+  function scanPageTextThreats(customText) {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+
+    // 1. Whitelist Check for Clean Developer & Trusted Sites
+    if (isCurrentSiteWhitelisted()) {
+      if (typeof updateShieldState === 'function') {
+        updateShieldState(false);
+      }
+      return;
+    }
+
+    const blocks = getCandidateTextBlocks(customText);
+    if (!blocks || blocks.length === 0) {
+      if (typeof updateShieldState === 'function') {
+        updateShieldState(false);
+      }
+      return;
+    }
+
+    let detectedThreat = null;
+
+    for (const blockText of blocks) {
+      let score = 0;
+      let category = 'SAFE';
+      let matchInfo = [];
+
+      // 1. Contextual regex check on individual block with strict word boundaries
+      for (const pattern of THREAT_PATTERNS) {
+        const match = blockText.match(pattern.regex);
+        if (match) {
+          score = pattern.weight;
+          category = pattern.category;
+          matchInfo.push(match[0]);
+          break;
+        }
+      }
+
+      // 2. Bayesian ML Model fallback on individual block (requiring high score and non-UI tokens)
+      if (score < 80 && localModel) {
+        const tokens = tokenizeText(blockText);
+        const filteredTokens = tokens.filter(t => !IGNORED_UI_WORDS.has(t));
+        const prediction = predictNaiveBayes(filteredTokens);
+
+        if (prediction && prediction.bestClass !== 'SAFE' && prediction.threatMargin >= 1.5) {
+          category = prediction.bestClass;
+          const modelWeight = localModel.threatWeights ? (localModel.threatWeights[category] || 85) : 85;
+          if (modelWeight >= 80) {
+            score = modelWeight;
+            matchInfo.push(`Bayesian Context Match: ${category}`);
           }
         }
       }
+
+      if (score >= 80 && category !== 'SAFE') {
+        detectedThreat = {
+          score,
+          category,
+          matches: matchInfo,
+          snippet: blockText.substring(0, 200)
+        };
+        break; // Found genuine high-severity threat block
+      }
     }
 
-    if (totalScore >= 75) {
-      lastVaultTime = Date.now();
-      currentDetectedThreatCount += matchesFound.length || 1;
+    // 3. If no high-risk pattern matched (threatScore < 80)
+    if (!detectedThreat || detectedThreat.score < 80) {
+      if (typeof updateShieldState === 'function') {
+        updateShieldState(false); // keep shield badge in standard ON status
+      }
+      return;
+    }
+
+    // 4. High-Severity Threat Confirmed (threatScore >= 80)
+    const totalScore = detectedThreat.score;
+    const primaryCategory = detectedThreat.category;
+    const snippet = detectedThreat.snippet;
+
+    if (totalScore >= 80 && !hasVaultedThisSession) {
+      if (typeof showToastAlert === 'function') {
+        showToastAlert('🚨 AegisHer Shield: ' + primaryCategory.replace(/_/g, ' ') + ' (' + totalScore + '/100) — Evidence Vaulted');
+      }
 
       if (typeof updateShieldState === 'function') {
-        updateShieldState(true, `🛡️ AegisHer — THREAT VAULTED (${totalScore}/100)`);
+        updateShieldState(true, '🚨 AegisHer — THREAT VAULTED (' + totalScore + '/100)');
       }
 
       try {
@@ -539,19 +583,17 @@
           action: 'THREAT_DETECTED',
           score: totalScore,
           threatType: primaryCategory,
-          matches: matchesFound,
-          snippet: snippet || pageText.substring(0, 180),
+          matches: detectedThreat.matches,
+          snippet: snippet,
           url: window.location.href,
           title: document.title || 'Security Incident'
-        }, () => {
-          if (chrome.runtime.lastError) return;
-          if (typeof showToastAlert === 'function') {
-            showToastAlert(`🚨 AegisHer Shield: ${primaryCategory.replace(/_/g, ' ')} (${totalScore}/100)`);
-          }
         });
       } catch (e) {
         console.warn('[AegisHer] Extension context invalidated during threat message:', e);
       }
+
+      hasVaultedThisSession = true;
+      currentDetectedThreatCount += 1;
     }
   }
 
@@ -564,7 +606,7 @@
     toast.innerHTML = `
       <span style="font-size: 18px;">🛡️</span>
       <div>
-        <strong>AegisHer Evidence Vault</strong>
+        <strong>AegisHer Real-Time Alert</strong>
         <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">${message}</div>
       </div>
     `;
@@ -575,6 +617,45 @@
     }, 6000);
   }
 
+  function showHoneypotBetaBanner() {
+    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+    if (document.getElementById('aegis-honeypot-beta-toast')) return;
+
+    const toast = document.createElement('div');
+    toast.id = 'aegis-honeypot-beta-toast';
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 2147483647;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      color: #f8fafc;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.3s ease;
+    `;
+    toast.innerHTML = `
+      <span style="font-size: 16px;">🛡️</span>
+      <div>
+        <strong>AegisHer Honeypot AI (Beta)</strong>
+        <div style="font-size: 11px; color: #93c5fd; margin-top: 2px;">Masking active credentials and preserving forensic metadata.</div>
+      </div>
+    `;
+
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      if (toast) toast.remove();
+    }, 4500);
+  }
+
   // --- 4. Initialization & Event Observers ---
   let isInitialized = false;
   function init() {
@@ -583,12 +664,13 @@
     isInitialized = true;
 
     injectShieldWidget();
+    scanLinksOnPage();
     scanPageTextThreats();
-    injectHoneypotTraps();
 
     // 1. Observe DOM mutations for incoming chat messages (WhatsApp Web, Telegram, live chats)
     const observer = new MutationObserver(() => {
       if (!chrome.runtime?.id || !isShieldGloballyActive) return;
+      scanLinksOnPage();
       scanPageTextThreats();
     });
     if (document.body) {
@@ -617,7 +699,10 @@
       }
     }, true);
 
-    window.addEventListener('load', () => setTimeout(scanPageTextThreats, 800));
+    window.addEventListener('load', () => {
+      scanLinksOnPage();
+      setTimeout(scanPageTextThreats, 800);
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -627,153 +712,6 @@
   } else {
     if (chrome.runtime?.id && isShieldGloballyActive) init();
   }
-
-  // --- 5. Stealth Honeypot Traps & Active Page Isolation Engine ---
-  function injectHoneypotTraps() {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (document.getElementById('aegis-decoy-input')) return;
-
-    // A. Inject Decoy Form Input (invisible to users, bait for autofillers/scrapers)
-    const decoyInput = document.createElement('input');
-    decoyInput.type = 'text';
-    decoyInput.id = 'aegis-decoy-input';
-    decoyInput.name = 'aegis_decoy_session_token';
-    decoyInput.value = 'token_live_8923f90ab82fcd890aef';
-    decoyInput.style.setProperty('position', 'absolute', 'important');
-    decoyInput.style.setProperty('left', '-9999px', 'important');
-    decoyInput.style.setProperty('top', '-9999px', 'important');
-    decoyInput.style.setProperty('width', '1px', 'important');
-    decoyInput.style.setProperty('height', '1px', 'important');
-    decoyInput.style.setProperty('opacity', '0.01', 'important');
-    decoyInput.style.setProperty('pointer-events', 'none', 'important');
-    decoyInput.tabIndex = -1;
-    decoyInput.autocomplete = 'off';
-
-    const triggerDecoy = (eventType) => {
-      reportHoneypotTrigger('DECOY_INPUT_INTERACTION', `Stealth decoy input "${decoyInput.name}" accessed via: ${eventType}`);
-    };
-
-    decoyInput.addEventListener('focus', () => triggerDecoy('focus'));
-    decoyInput.addEventListener('change', () => triggerDecoy('change'));
-    decoyInput.addEventListener('input', () => triggerDecoy('input'));
-    document.body.appendChild(decoyInput);
-
-    // B. Inject Decoy Link Trap
-    const decoyLink = document.createElement('a');
-    decoyLink.href = 'https://aegis-decoy-trap.local/admin-login-portal';
-    decoyLink.id = 'aegis-decoy-link';
-    decoyLink.style.setProperty('position', 'absolute', 'important');
-    decoyLink.style.setProperty('left', '-9999px', 'important');
-    decoyLink.style.setProperty('top', '-9999px', 'important');
-    decoyLink.style.setProperty('width', '1px', 'important');
-    decoyLink.style.setProperty('height', '1px', 'important');
-    decoyLink.style.setProperty('opacity', '0.01', 'important');
-    decoyLink.style.setProperty('pointer-events', 'none', 'important');
-    decoyLink.tabIndex = -1;
-    decoyLink.textContent = 'Aegis Decoy Trap Link';
-
-    decoyLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      reportHoneypotTrigger('DECOY_LINK_CLICKED', 'Decoy link portal traversed by automation agent');
-    });
-    decoyLink.addEventListener('mouseover', () => {
-      reportHoneypotTrigger('DECOY_LINK_HOVERED', 'Decoy link portal hovered by crawler agent');
-    });
-    document.body.appendChild(decoyLink);
-  }
-
-  // Handle messages from the page-context script (API hook)
-  window.addEventListener('message', (e) => {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (e.data && e.data.source === 'aegis-honeypot' && e.data.type === 'API_HOOK_TRIGGER') {
-      reportHoneypotTrigger('API_HOOK_ACCESS', e.data.detail);
-    }
-  });
-
-  function reportHoneypotTrigger(trapType, detail) {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (isPageIsolated) return;
-
-    let prediction = 'AUTOMATED_BOT';
-    let score = 95;
-
-    if (localModel) {
-      const tokens = tokenizeText(detail);
-      const predictionRes = predictNaiveBayes(tokens);
-      if (predictionRes && predictionRes.bestClass !== 'SAFE') {
-        prediction = predictionRes.bestClass;
-        score = localModel.threatWeights ? (localModel.threatWeights[prediction] || 95) : 95;
-      }
-    }
-
-    try {
-      chrome.runtime.sendMessage({
-        action: 'HONEYPOT_TRIGGERED',
-        trapType: trapType,
-        detail: detail,
-        score: score,
-        threatType: prediction,
-        url: window.location.href,
-        title: document.title || 'Honeypot Trap Page'
-      });
-    } catch (e) {
-      console.warn('[AegisHer] Extension context invalidated on honeypot trigger:', e);
-    }
-
-    enablePageIsolation(trapType, detail);
-  }
-
-  function enablePageIsolation(trapType, detail) {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (isPageIsolated) return;
-    isPageIsolated = true;
-
-    // Trigger red flashing outline
-    document.body.classList.add('aegis-isolated-halo');
-
-    // Mount visual isolation warning banner
-    let banner = document.getElementById('aegis-isolation-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'aegis-isolation-banner';
-      banner.innerHTML = `
-      <div class="banner-message">
-        <span>🚨</span>
-        <strong>AegisHer Active Isolation:</strong> Bot/scraper threat detected (${trapType}). Page isolated to block credentials leakage.
-      </div>
-      <button class="dismiss-btn" id="aegis-dismiss-isolation">Dismiss Shield</button>
-    `;
-      document.body.appendChild(banner);
-
-      document.getElementById('aegis-dismiss-isolation').addEventListener('click', () => {
-        if (confirm('AegisHer Warning: Are you sure you want to dismiss active page isolation? Malicious scripts could harvest inputs.')) {
-          disablePageIsolation();
-        }
-      });
-    }
-
-    updateShieldState(true, `🚨 AegisHer — BOT ISOLATED (${trapType})`);
-    showToastAlert(`🚨 Honeypot Triggered: ${trapType} (Threat Score: 95)`);
-  }
-
-  function disablePageIsolation() {
-    isPageIsolated = false;
-    if (document.body) document.body.classList.remove('aegis-isolated-halo');
-    const banner = document.getElementById('aegis-isolation-banner');
-    if (banner) banner.remove();
-    updateShieldState(false);
-  }
-
-  // Form submission interception during active page isolation
-  document.addEventListener('submit', (e) => {
-    if (!chrome.runtime?.id || !isShieldGloballyActive) return;
-    if (isPageIsolated) {
-      e.preventDefault();
-      e.stopPropagation();
-      showToastAlert('⚠️ AegisHer: Form submission blocked. Page is in isolation mode.');
-      console.warn('[AegisHer] Form submission blocked during page isolation.');
-    }
-  }, true);
 
   // Expose test helper on window for manual testing if needed
   window.__AegisHerTestScan = scanPageTextThreats;

@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Load Evidence Vault from Storage
   function loadVaultData() {
-    chrome.storage.local.get(['aegis_evidence_vault'], (res) => {
-      currentVault = res.aegis_evidence_vault || [];
+    chrome.storage.local.get(['aegis_vault', 'aegis_evidence_vault'], (res) => {
+      currentVault = res.aegis_vault || res.aegis_evidence_vault || [];
       renderVaultUI(currentVault);
     });
   }
@@ -43,17 +43,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const formattedDate = new Date(item.timestamp).toLocaleString();
       const isHoneypot = !!item.isHoneypot;
+      const isManual = item.threatScore === 'N/A' || item.threatCategory === 'USER_MANUAL_REPORT' || item.threatType === 'USER_MANUAL_REPORT';
       const badgeType = escapeHtml(item.threatType || 'HIGH_RISK_THREAT');
       const matchesLabel = isHoneypot ? 'Triggered Trap Type' : 'Matched Threat Terms';
       const matchesStr = (item.matches && item.matches.length > 0)
         ? item.matches.join(', ')
         : (isHoneypot ? 'Stealth honeypot interaction' : 'Multiple extortion/stalking patterns detected');
 
+      const scorePillHTML = isManual
+        ? `<span class="score-pill">Threat Score: N/A</span>`
+        : `<span class="score-pill">Threat Score: ${item.threatScore} / 100</span>`;
+
       card.innerHTML = `
         <div class="incident-meta">
           <div class="meta-left">
             <span class="badge-type" style="${isHoneypot ? 'background: rgba(239, 68, 68, 0.25); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);' : ''}">${badgeType}</span>
-            <span class="score-tag">Threat Score: ${item.threatScore} / 100</span>
+            ${scorePillHTML}
           </div>
           <div class="timestamp">📅 ${formattedDate} (ID: ${escapeHtml(item.id || 'N/A')})</div>
         </div>
@@ -128,12 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
     reportText += `System Integrity: AEGISHER AI PROTECTION SHIELD V1.0\n\n`;
 
     currentVault.forEach((item, idx) => {
+      const isManual = item.threatScore === 'N/A' || item.threatCategory === 'USER_MANUAL_REPORT' || item.threatType === 'USER_MANUAL_REPORT';
+      const scoreStr = isManual ? 'N/A' : `${item.threatScore || 85} / 100`;
+
       reportText += `----------------------------------------------------------------------\n`;
       reportText += `INCIDENT #${idx + 1} | ID: ${item.id}\n`;
       reportText += `----------------------------------------------------------------------\n`;
       reportText += `Timestamp     : ${item.timestamp}\n`;
       reportText += `Threat Type   : ${item.threatType || item.category || 'THREAT_DETECTED'}\n`;
-      reportText += `Threat Score  : ${item.threatScore || 85} / 100\n`;
+      reportText += `Threat Score  : ${scoreStr}\n`;
       reportText += `Target URL    : ${item.url || 'N/A'}\n`;
       reportText += `Page Title    : ${item.title || 'N/A'}\n`;
       reportText += `Matched Terms : ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
@@ -153,12 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 3B. Single Incident TXT Exporter ---
   function exportSingleIncidentReportTXT(item) {
     if (!item) return;
+    const isManual = item.threatScore === 'N/A' || item.threatCategory === 'USER_MANUAL_REPORT' || item.threatType === 'USER_MANUAL_REPORT';
+    const scoreStr = isManual ? 'N/A' : `${item.threatScore || 85} / 100`;
+
     let reportText = `======================================================================\n`;
     reportText += `     AEGISHER INCIDENT REPORT - ${item.id}\n`;
     reportText += `======================================================================\n\n`;
     reportText += `Timestamp      : ${item.timestamp}\n`;
     reportText += `Threat Category: ${item.threatType || item.category || 'SECURITY_THREAT'}\n`;
-    reportText += `Threat Score   : ${item.threatScore || 85} / 100\n`;
+    reportText += `Threat Score   : ${scoreStr}\n`;
     reportText += `Target URL     : ${item.url || 'N/A'}\n`;
     reportText += `Page Title     : ${item.title || 'N/A'}\n`;
     reportText += `Matched Terms  : ${item.matches ? item.matches.join(', ') : 'N/A'}\n\n`;
@@ -199,7 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
     doc.text(`Timestamp: ${item.timestamp || 'N/A'}`, 16, 51);
-    doc.text(`Threat Score: ${item.threatScore || 85}/100`, 135, 51);
+
+    const isManual = item.threatScore === 'N/A' || item.threatCategory === 'USER_MANUAL_REPORT' || item.threatType === 'USER_MANUAL_REPORT';
+    const scoreStr = isManual ? 'N/A' : `${item.threatScore || 85}/100`;
+
+    doc.text(`Threat Score: ${scoreStr}`, 135, 51);
     doc.text(`Target URL: ${item.url || 'N/A'}`, 16, 58);
     doc.text(`Matched Patterns: ${item.matches ? item.matches.join(', ') : 'N/A'}`, 16, 65);
 
@@ -273,7 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(71, 85, 105);
       doc.text(`Category: ${item.threatType || item.category || 'DETECTED THREAT'}`, 16, yPos + 13);
-      doc.text(`Threat Score: ${item.threatScore || 85}/100`, 135, yPos + 13);
+      const isManual = item.threatScore === 'N/A' || item.threatCategory === 'USER_MANUAL_REPORT' || item.threatType === 'USER_MANUAL_REPORT';
+      const scoreStr = isManual ? 'N/A' : `${item.threatScore || 85}/100`;
+      doc.text(`Threat Score: ${scoreStr}`, 135, yPos + 13);
       doc.text(`Timestamp: ${item.timestamp || 'N/A'}`, 16, yPos + 19);
       doc.text(`Target URL: ${item.url || 'Local Page / Direct Context'}`, 16, yPos + 25);
 
@@ -375,11 +392,11 @@ document.addEventListener('DOMContentLoaded', () => {
       isHoneypot: true
     };
 
-    chrome.storage.local.get(['aegis_evidence_vault'], (res) => {
-      const vault = res.aegis_evidence_vault || [];
+    chrome.storage.local.get(['aegis_vault', 'aegis_evidence_vault'], (res) => {
+      const vault = res.aegis_vault || res.aegis_evidence_vault || [];
       vault.unshift(demoItem);
       vault.unshift(hpItem);
-      chrome.storage.local.set({ aegis_evidence_vault: vault }, () => {
+      chrome.storage.local.set({ aegis_vault: vault, aegis_evidence_vault: vault }, () => {
         loadVaultData();
       });
     });
@@ -388,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function deleteSingleIncident(index) {
     if (confirm('Are you sure you want to delete this vaulted evidence item?')) {
       currentVault.splice(index, 1);
-      chrome.storage.local.set({ aegis_evidence_vault: currentVault }, () => {
+      chrome.storage.local.set({ aegis_vault: currentVault, aegis_evidence_vault: currentVault }, () => {
         loadVaultData();
       });
     }
@@ -396,7 +413,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function clearAllVault() {
     if (confirm('Are you sure you want to clear ALL evidence from your vault? This cannot be undone.')) {
-      chrome.storage.local.set({ aegis_evidence_vault: [] }, () => {
+      chrome.runtime.sendMessage({ action: 'CLEAR_VAULT' }, () => {
+        currentVault = [];
         loadVaultData();
       });
     }

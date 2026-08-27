@@ -123,33 +123,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'THREAT_DETECTED') {
     const { score, threatType, matches, snippet, url, title } = request;
 
-    // Capture visible tab screenshot as compressed JPEG evidence
-    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
+    if (score < 80) {
+      sendResponse({ success: false, reason: 'Threat score below 80 threshold' });
+      return true;
+    }
+
+    const targetWindowId = (sender.tab && sender.tab.windowId) ? sender.tab.windowId : null;
+    const targetUrl = (sender.tab && sender.tab.url) ? sender.tab.url : (url || 'Unknown URL');
+    const targetTitle = (sender.tab && sender.tab.title) ? sender.tab.title : (title || 'Page Capture');
+
+    // Capture visible tab screenshot for the specific target window
+    chrome.tabs.captureVisibleTab(targetWindowId, { format: 'jpeg', quality: 60 }, (dataUrl) => {
       const lastError = chrome.runtime.lastError;
       const screenshotData = lastError ? null : dataUrl;
 
       const evidenceRecord = {
         id: 'ev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         timestamp: new Date().toISOString(),
-        url: url || (sender.tab ? sender.tab.url : 'Unknown URL'),
-        title: title || (sender.tab ? sender.tab.title : 'Page Capture'),
+        url: targetUrl,
+        title: targetTitle,
         threatScore: score,
         threatType: threatType || 'HIGH_RISK_THREAT',
+        threatCategory: threatType || 'HIGH_RISK_THREAT',
         matches: matches || [],
         snippet: snippet || '',
         screenshot: screenshotData
       };
 
-      // Save into chrome.storage.local capped to 25 items
-      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], risks_blocked: 0 }, (res) => {
-        const currentVault = res.aegis_evidence_vault || res.aegis_vault || [];
+      chrome.storage.local.get({ aegis_vault: [], aegis_evidence_vault: [] }, (res) => {
+        const currentVault = res.aegis_vault || res.aegis_evidence_vault || [];
         currentVault.unshift(evidenceRecord);
-        const cappedVault = currentVault.slice(0, 25);
-        const risksBlocked = (res.risks_blocked || 0) + 1;
-        chrome.storage.local.set({ aegis_evidence_vault: cappedVault, aegis_vault: cappedVault, risks_blocked: risksBlocked }, () => {
-          console.log(`[AegisHer] Evidence vaulted successfully for threat score ${score}. ID: ${evidenceRecord.id}`);
+        const cappedVault = currentVault.slice(0, 20); // Capped to 20 items
 
-          // Forward telemetry to local Python server
+        chrome.storage.local.set({
+          aegis_vault: cappedVault,
+          aegis_evidence_vault: cappedVault
+        }, () => {
+          console.log(`[AegisHer] High-severity threat evidence vaulted. Type: ${threatType}, Score: ${score}, ID: ${evidenceRecord.id}`);
+
           fetch('http://localhost:5000/api/telemetry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,7 +175,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             })
           }).catch(err => console.warn('[AegisHer Background] Local telemetry server offline.'));
 
-          // Broadcast alert to active extension pages
           chrome.runtime.sendMessage({
             action: 'REALTIME_ALERT',
             threat: evidenceRecord
@@ -180,7 +190,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'GET_EVIDENCE_VAULT') {
     chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [] }, (res) => {
-      sendResponse({ vault: res.aegis_evidence_vault || res.aegis_vault || [] });
+      sendResponse({ vault: res.aegis_vault || res.aegis_evidence_vault || [] });
+    });
+    return true;
+  }
+
+  if (request.action === 'CLEAR_VAULT') {
+    chrome.storage.local.set({
+      aegis_vault: [],
+      aegis_evidence_vault: []
+    }, () => {
+      console.log('[AegisHer] Evidence vault cleared.');
+      chrome.runtime.sendMessage({ action: 'REALTIME_ALERT' }).catch(e => {});
+      sendResponse({ success: true });
     });
     return true;
   }
@@ -188,137 +210,73 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'HONEYPOT_TRIGGERED') {
     const { trapType, detail, score, threatType, url, title } = request;
 
-    // Set extension badge to warning mode
-    chrome.action.setBadgeText({ text: '!' });
-    chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    chrome.storage.local.get({ aegis_honeypot_stats: { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 } }, (res) => {
+      const hpStats = res.aegis_honeypot_stats || { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 };
+      hpStats.totalBaited += 1;
 
-    // Capture visible tab evidence screenshot
-    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
-      const lastError = chrome.runtime.lastError;
-      const screenshotData = lastError ? null : dataUrl;
-
-      const evidenceId = 'hp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-      const honeypotRecord = {
-        id: evidenceId,
-        timestamp: new Date().toISOString(),
-        url: url || (sender.tab ? sender.tab.url : 'Unknown URL'),
-        title: title || (sender.tab ? sender.tab.title : 'Honeypot Decoy Page'),
-        threatScore: score || 95,
-        threatType: threatType || 'AUTOMATED_BOT',
-        matches: [trapType],
-        snippet: detail || '',
-        screenshot: screenshotData,
-        isHoneypot: true
-      };
-
-      // Save to evidence vault, logs, and statistics capped to 25 items
-      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], aegis_honeypot_logs: [], aegis_honeypot_stats: { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 }, risks_blocked: 0 }, (res) => {
-        const vault = res.aegis_evidence_vault || res.aegis_vault || [];
-        vault.unshift(honeypotRecord);
-        const cappedVault = vault.slice(0, 25);
-
-        const hpLogs = res.aegis_honeypot_logs || [];
-        hpLogs.unshift(honeypotRecord);
-        const cappedHpLogs = hpLogs.slice(0, 25);
-
-        const hpStats = res.aegis_honeypot_stats || { totalBaited: 0, decoyInput: 0, apiHook: 0, decoyLink: 0 };
-        hpStats.totalBaited += 1;
-        if (trapType.includes('INPUT')) hpStats.decoyInput += 1;
-        else if (trapType.includes('API')) hpStats.apiHook += 1;
-        else if (trapType.includes('LINK')) hpStats.decoyLink += 1;
-
-        const risksBlocked = (res.risks_blocked || 0) + 1;
-
-        chrome.storage.local.set({
-          aegis_evidence_vault: cappedVault,
-          aegis_vault: cappedVault,
-          aegis_honeypot_logs: cappedHpLogs,
-          aegis_honeypot_stats: hpStats,
-          risks_blocked: risksBlocked
-        }, () => {
-          console.log(`[AegisHer] Honeypot record saved. Threat: ${threatType}. ID: ${evidenceId}`);
-
-          // Forward telemetry to local Python server
-          fetch('http://localhost:5000/api/telemetry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              timestamp: honeypotRecord.timestamp,
-              event: 'HONEYPOT_TRIGGERED',
-              threatType: honeypotRecord.threatType,
-              score: honeypotRecord.threatScore,
-              trapType: trapType,
-              url: honeypotRecord.url,
-              details: honeypotRecord.snippet
-            })
-          }).catch(err => console.warn('[AegisHer Background] Local telemetry server offline.'));
-
-          // Broadcast alert to active extension pages
-          chrome.runtime.sendMessage({
-            action: 'REALTIME_ALERT',
-            threat: honeypotRecord
-          }).catch(e => { /* ignore error when views closed */ });
-
-          sendResponse({ success: true, logged: true });
-        });
+      chrome.storage.local.set({ aegis_honeypot_stats: hpStats }, () => {
+        sendResponse({ success: true, logged: true });
       });
     });
-    return true; // Keep channel open for async response
+    return true;
   }
 
   if (request.action === 'MANUAL_VAULT_CAPTURE') {
-    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 60 }, (dataUrl) => {
-      const lastError = chrome.runtime.lastError;
-      const screenshotData = lastError ? null : dataUrl;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeTab = tabs && tabs[0];
+      const targetWindowId = activeTab ? activeTab.windowId : null;
+      const targetUrl = activeTab ? activeTab.url : (request.url || 'Active Tab');
+      const targetTitle = activeTab ? activeTab.title : (request.title || 'Manual Evidence Capture');
 
-      const evidenceRecord = {
-        id: 'ev_manual_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-        timestamp: new Date().toISOString(),
-        url: request.url || (sender.tab ? sender.tab.url : 'Active Tab'),
-        title: request.title || (sender.tab ? sender.tab.title : 'Manual Evidence Capture'),
-        threatScore: 100,
-        threatType: 'USER_REPORTED_INCIDENT',
-        threatCategory: 'MANUAL_EVIDENCE',
-        matches: ['MANUAL_USER_CAPTURE'],
-        snippet: 'User manually captured screen evidence via AegisHer extension popup.',
-        screenshot: screenshotData
-      };
+      chrome.tabs.captureVisibleTab(targetWindowId, { format: 'jpeg', quality: 60 }, (dataUrl) => {
+        const lastError = chrome.runtime.lastError;
+        const screenshotData = lastError ? null : dataUrl;
 
-      chrome.storage.local.get({ aegis_evidence_vault: [], aegis_vault: [], risks_blocked: 0 }, (res) => {
-        const currentVault = res.aegis_evidence_vault || res.aegis_vault || [];
-        currentVault.unshift(evidenceRecord);
-        const cappedVault = currentVault.slice(0, 25);
-        const risksBlocked = (res.risks_blocked || 0) + 1;
+        const evidenceRecord = {
+          id: 'ev_manual_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          timestamp: new Date().toISOString(),
+          url: targetUrl,
+          title: targetTitle,
+          threatScore: 'N/A',
+          threatType: 'USER_MANUAL_REPORT',
+          threatCategory: 'USER_MANUAL_REPORT',
+          matches: ['USER_MANUAL_REPORT'],
+          snippet: 'Manually vaulted by user via AegisHer Shield overlay.',
+          screenshot: screenshotData
+        };
 
-        chrome.storage.local.set({
-          aegis_evidence_vault: cappedVault,
-          aegis_vault: cappedVault,
-          risks_blocked: risksBlocked
-        }, () => {
-          console.log(`[AegisHer] Manual evidence vaulted successfully. ID: ${evidenceRecord.id}`);
+        chrome.storage.local.get({ aegis_vault: [], aegis_evidence_vault: [] }, (res) => {
+          const currentVault = res.aegis_vault || res.aegis_evidence_vault || [];
+          currentVault.unshift(evidenceRecord);
+          const cappedVault = currentVault.slice(0, 20);
 
-          // Forward telemetry to local Python server
-          fetch('http://localhost:5000/api/telemetry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              timestamp: evidenceRecord.timestamp,
-              event: 'MANUAL_VAULT_CAPTURE',
-              threatType: evidenceRecord.threatType,
-              score: evidenceRecord.threatScore,
-              trapType: 'MANUAL_EVIDENCE',
-              url: evidenceRecord.url,
-              details: evidenceRecord.snippet
-            })
-          }).catch(err => console.warn('[AegisHer Background] Local telemetry server offline.'));
+          chrome.storage.local.set({
+            aegis_vault: cappedVault,
+            aegis_evidence_vault: cappedVault
+          }, () => {
+            console.log(`[AegisHer] Manual evidence vaulted successfully. ID: ${evidenceRecord.id}`);
 
-          // Broadcast alert to active extension pages
-          chrome.runtime.sendMessage({
-            action: 'REALTIME_ALERT',
-            threat: evidenceRecord
-          }).catch(e => { /* ignore error when views closed */ });
+            fetch('http://localhost:5000/api/telemetry', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                timestamp: evidenceRecord.timestamp,
+                event: 'MANUAL_VAULT_CAPTURE',
+                threatType: evidenceRecord.threatType,
+                score: evidenceRecord.threatScore,
+                trapType: 'MANUAL_EVIDENCE',
+                url: evidenceRecord.url,
+                details: evidenceRecord.snippet
+              })
+            }).catch(err => console.warn('[AegisHer Background] Local telemetry server offline.'));
 
-          sendResponse({ success: true, evidenceId: evidenceRecord.id });
+            chrome.runtime.sendMessage({
+              action: 'REALTIME_ALERT',
+              threat: evidenceRecord
+            }).catch(e => { /* ignore error when views closed */ });
+
+            sendResponse({ success: true, evidenceId: evidenceRecord.id });
+          });
         });
       });
     });

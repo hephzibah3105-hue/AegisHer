@@ -146,7 +146,7 @@
     /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
 
@@ -171,10 +171,6 @@
     }
 
     .stat-card:nth-child(2) .stat-val {
-      color: #f59e0b;
-    }
-
-    .stat-card:nth-child(3) .stat-val {
       color: #ef4444;
     }
 
@@ -273,17 +269,14 @@
       </label>
     </div>
 
-    <!-- Honeypot Bot Alert Banner -->
+    <!-- Honeypot AI Engine Indicator -->
     <div id="honeypot-alert-banner"
-      style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 12px 14px; align-items: center; gap: 10px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); margin-bottom: 4px;">
-      <span style="font-size: 20px;">🤖</span>
+      style="display: flex; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 10px 14px; align-items: center; gap: 10px; margin-bottom: 8px;">
+      <span style="font-size: 18px;">🛡️</span>
       <div style="flex: 1;">
-        <div style="font-size: 12px; font-weight: 700; color: #f87171;">Honeypot Trap Triggered!</div>
-        <div style="font-size: 10px; color: #cbd5e1; margin-top: 1.5px;">Active page isolation blocking credential
-          harvesting scripts.</div>
+        <div style="font-size: 11px; font-weight: 700; color: #60a5fa;">Honeypot AI Engine (Experimental Beta)</div>
+        <div style="font-size: 10px; color: #cbd5e1; margin-top: 1.5px;">Passive Credential Protection &bull; Standby Forensic Mode</div>
       </div>
-      <button id="dismiss-badge-btn"
-        style="background: rgba(255, 255, 255, 0.1); border: none; color: #fff; border-radius: 4px; padding: 3px 7px; font-size: 9px; font-weight: 700; cursor: pointer;">Clear</button>
     </div>
 
     <!-- Blocked Stats Counter -->
@@ -291,10 +284,6 @@
       <div class="stat-card">
         <div class="stat-val" id="stat-scanned">0</div>
         <div class="stat-label">Links Scanned</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val" id="stat-intercepted">0</div>
-        <div class="stat-label">Risks Blocked</div>
       </div>
       <div class="stat-card">
         <div class="stat-val" id="stat-vaulted">0</div>

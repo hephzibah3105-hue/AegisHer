@@ -65,7 +65,14 @@ def predict_naive_bayes(text):
             max_score = score
             best_class = cls
 
-    threat_score = model["threatWeights"].get(best_class, 0)
+    safe_score = scores.get("SAFE", -float("inf"))
+    threat_margin = max_score - safe_score
+
+    # Require confidence margin over SAFE to classify as threat
+    if best_class != "SAFE" and threat_margin < 0.5:
+        best_class = "SAFE"
+
+    threat_score = model.get("threatWeights", {}).get(best_class, 0)
     return {
         "bestClass": best_class,
         "threatScore": threat_score,
