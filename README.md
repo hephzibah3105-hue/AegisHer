@@ -1,4 +1,12 @@
-# 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
+### 🚀 How to Install & Run AegisHer
+1. Download the `AegisHer.zip` file below and extract/unzip it.
+```bash
+https://github.com/hephzibah3105-hue/AegisHer/releases/download/v1.0.0/AegisHer-main.zip
+```
+2. Open Google Chrome and go to `chrome://extensions/`.
+3. In the top-right corner, toggle **Developer mode** ON.
+4. Click **Load unpacked** (top-left corner).
+5. Select the extracted folder containing `manifest.json`.# 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
 
 > A privacy-first, client-side browser extension and digital forensics suite engineered to detect cyber-threats, prevent sextortion and coercive blackmail, intercept phishing gateways, analyze synthetic deepfakes in real-time, and automatically preserve cryptographic evidence for women and vulnerable internet users.
 
@@ -95,22 +103,6 @@ AegisHer/
 git clone [https://github.com/hephzibah3105-hue/AegisHer.git](https://github.com/hephzibah3105-hue/AegisHer.git)
 cd AegisHer
 ```
-
-### Step 2: (Optional) Re-Train the On-Device AI Model
-To compile custom dataset categories or update threat dictionaries:
-```bash
-python train_model.py
-```
-This updates `threat_model.json` directly in the project root.
-
-### Step 3: Load Extension into Google Chrome
-1. Open Google Chrome and navigate to `chrome://extensions/`.
-2. Enable **Developer mode** using the toggle switch in the top-right corner.
-3. Click the **Load unpacked** button in the top-left corner.
-4. Select the root `AegisHer` folder.
-5. The **AegisHer — AI Cybersecurity Guardian** shield will now appear in your browser toolbar.
-
----
 
 ## 🧪 Comprehensive Feature Walkthrough & Verification
 
