@@ -6,7 +6,11 @@ https://github.com/hephzibah3105-hue/AegisHer/releases/download/v1.0.0/AegisHer-
 2. Open Google Chrome and go to `chrome://extensions/`.
 3. In the top-right corner, toggle **Developer mode** ON.
 4. Click **Load unpacked** (top-left corner).
-5. Select the extracted folder containing `manifest.json`.# 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
+5. Select the extracted folder containing `manifest.json`.
+
+
+
+### 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
 
 > A privacy-first, client-side browser extension and digital forensics suite engineered to detect cyber-threats, prevent sextortion and coercive blackmail, intercept phishing gateways, analyze synthetic deepfakes in real-time, and automatically preserve cryptographic evidence for women and vulnerable internet users.
 
