@@ -10,7 +10,7 @@ https://github.com/hephzibah3105-hue/AegisHer/releases/download/v1.0.0/AegisHer-
 
 
 
-### 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
+# 🛡️ AegisHer — AI-Powered Digital Safety Guardian & Threat Intelligence Engine
 
 > A privacy-first, client-side browser extension and digital forensics suite engineered to detect cyber-threats, prevent sextortion and coercive blackmail, intercept phishing gateways, analyze synthetic deepfakes in real-time, and automatically preserve cryptographic evidence for women and vulnerable internet users.
 
